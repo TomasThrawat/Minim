@@ -1,879 +1,162 @@
 {
   "version": 1,
   "anytime": [
-    {
-      "text": "Good morning.\nRangoli first, playlist second.",
-      "hours": "5-8"
-    },
-    {
-      "text": "The diyas are up.\nSo should you be.",
-      "hours": "6-9"
-    },
-    {
-      "text": "Ladoo for breakfast?\nIt's Diwali, it counts.",
-      "hours": "9-11"
-    },
-    {
-      "text": "Afternoon slump?\nKaju katli fixes that.",
-      "hours": "12-15"
-    },
-    {
-      "text": "Your Diwali nap\nneeds a soundtrack.",
-      "hours": "13-16"
-    },
-    {
-      "text": "Sun's down, diyas on.\nLighting hour, {name}.",
-      "hours": "17-18"
-    },
-    {
-      "text": "Puja's done.\nVolume's allowed now.",
-      "hours": "18-20"
-    },
-    {
-      "text": "Crackers outside.\nBetter bangers in here.",
-      "hours": "19-22"
-    },
-    {
-      "text": "Still up?\nSo are the neighbours' rockets.",
-      "hours": "22-0"
-    },
-    {
-      "text": "3am crackers again.\nFine. Play on.",
-      "hours": "1-4"
-    },
-    {
-      "text": "Happy Diwali week, {name}.\nLights on, volume up."
-    },
-    {
-      "text": "Soan papdi incoming.\nRegift responsibly."
-    },
-    {
-      "text": "Relatives asking your marks?\nTurn it up."
-    },
-    {
-      "text": "Diwali cleaning found\nyour old earphones. Use them."
-    },
-    {
-      "text": "One more sweet.\nOne more song."
-    },
-    {
-      "text": "Your diet called.\nIt's on leave till Bhai Dooj."
-    },
-    {
-      "text": "New clothes.\nSame old playlist? Fix that."
-    },
-    {
-      "text": "Rangoli by mom,\nsoundtrack by you."
-    },
-    {
-      "text": "Card night tip:\nsad songs make bluffing harder."
-    },
-    {
-      "text": "Neighbours on rockets.\nYou on repeat."
-    },
-    {
-      "text": "Sweets eaten: lost count.\nRegrets: zero."
-    },
-    {
-      "text": "Ears getting\ncracker-proofed."
-    },
-    {
-      "text": "Pollution's high.\nSo is the volume."
-    },
-    {
-      "text": "House is clean.\nQueue is full."
-    },
-    {
-      "text": "Lighting diyas\none beat at a time."
-    },
-    {
-      "text": "Good morning, {name}.\nDiyas before deadlines."
-    },
-    {
-      "text": "Chai's ready.\nSo is the festive queue.",
-      "hours": "5-9"
-    },
-    {
-      "text": "Morning aarti done?\nYour playlist is next in line.",
-      "hours": "6-10"
-    },
-    {
-      "text": "Surya namaskar or\nfirst song? Both, obviously.",
-      "hours": "6-8"
-    },
-    {
-      "text": "Doorbell's ringing.\nRelatives with sweets. Play louder.",
-      "hours": "10-13"
-    },
-    {
-      "text": "Lunch is heavy.\nPlaylist should be heavier.",
-      "hours": "12-15"
-    },
-    {
-      "text": "Post-lunch coma?\nBeat it with a beat.",
-      "hours": "14-17"
-    },
-    {
-      "text": "Diyas need oil.\nYour ears need this.",
-      "hours": "17-19"
-    },
-    {
-      "text": "Sandhya aarti time.\nMusic before or after? Trick question.",
-      "hours": "18-20"
-    },
-    {
-      "text": "Fireworks beginning.\nSo should your first track.",
-      "hours": "19-21"
-    },
-    {
-      "text": "Feast round two?\nPress play with it.",
-      "hours": "20-23"
-    },
-    {
-      "text": "Late-night Diwali chat?\nBackground music mandatory.",
-      "hours": "22-1"
-    },
-    {
-      "text": "Can't sleep, too much sugar?\nSame. Here's a song.",
-      "hours": "0-4"
-    },
-    {
-      "text": "Happy Diwali, {name}.\nMay your Wi-Fi be as strong as your sweets."
-    },
-    {
-      "text": "May your diyas burn\nas long as this playlist."
-    },
-    {
-      "text": "Happy Diwali!\nSweets to the left, speakers to the right."
-    },
-    {
-      "text": "Crackers come and go.\nGood songs stay on loop."
-    },
-    {
-      "text": "Diwali tip: louder music,\nfewer awkward cousin questions."
-    },
-    {
-      "text": "New outfit energy.\nOld playlist? Upgrade time."
-    },
-    {
-      "text": "Mithai box opened.\nPlaylist unlocked."
-    },
-    {
-      "text": "Rangoli goals by family,\nvolume goals by you."
-    },
-    {
-      "text": "Lighting diyas\nin 4/4 time."
-    },
-    {
-      "text": "Festival of lights,\nseason of loops."
-    },
-    {
-      "text": "May your queue be long\nand your cracker breaks short."
-    },
-    {
-      "text": "Sweets: unlimited.\nSkips: zero."
-    },
-    {
-      "text": "Diwali is for\nfamily, food and full volume."
-    },
-    {
-      "text": "One diya, one song.\nRepeat till the sun's up."
-    },
-    {
-      "text": "Your phone storage\nvs. Diwali photos. Good luck."
-    },
-    {
-      "text": "Dressing up for Diwali\nis just prep for the concert in your room."
-    },
-    {
-      "text": "Firecracker smoke in the air?\nLet the bass clear it."
-    },
-    {
-      "text": "Every diya a light.\nEvery track a mood."
-    },
-    {
-      "text": "Lakshmi Puja done.\nNow the sound puja."
-    },
-    {
-      "text": "Nazar utaaro the playlist.\nIt's too good."
-    },
-    {
-      "text": "Diwali wishes\nsound better with a beat."
-    },
-    {
-      "text": "Sweet box in hand,\nearbuds in ear. Balance."
-    },
-    {
-      "text": "The whole lane's glowing.\nYou're glowing louder."
-    },
-    {
-      "text": "Shubh Deepavali, {name}.\nSound on, worries off."
-    },
-    {
-      "text": "Five diyas in.\nFive songs deep. Perfect ratio."
-    },
-    {
-      "text": "Diwali felt playlist-length today, no?"
-    },
-    {
-      "text": "Diwali be like:\none diya lit, ten songs queued. Balance."
-    },
-    {
-      "text": "The mithai is calling.\nSo is the replay button."
-    },
-    {
-      "text": "Bass so loud\nthe diya flame flickers. Nice."
-    },
-    {
-      "text": "Your cousins are dancing.\nYou're DJing. Everybody wins."
-    },
-    {
-      "text": "Lights on the house,\nbass in the walls."
-    },
-    {
-      "text": "Somewhere between a ladoo\nand a chorus. Perfect Diwali."
-    },
-    {
-      "text": "The aunties are judging your outfit.\nHeadphones: on."
-    },
-    {
-      "text": "Diwali cardio:\nrunning from relatives to the speaker."
-    },
-    {
-      "text": "Firecrackers are temporary.\nThis playlist is forever."
-    },
-    {
-      "text": "Golden hour, golden diyas,\ngolden oldies. Play them."
-    },
-    {
-      "text": "Someone's lighting a sparkler.\nYou're lighting up the aux."
-    },
-    {
-      "text": "Happy Diwali to everyone\nexcept the one who ate the last kaju katli."
-    },
-    {
-      "text": "May your rangoli be neat\nand your queue be neater."
-    },
-    {
-      "text": "Diwali mission:\nsurvive the sweets. Soundtrack the survival."
-    },
-    {
-      "text": "Sit near the diyas.\nPlay something warm."
-    },
-    {
-      "text": "The whole family's singing now.\nYou started this. Proud?"
-    },
-    {
-      "text": "Diwali calories don't count.\nNeither do skips tonight."
-    },
-    {
-      "text": "Lights strung, sweets stacked,\nspeakers charged. Ready."
-    },
-    {
-      "text": "Your Diwali resolution:\nno skipping the good part."
-    },
-    {
-      "text": "Rangoli made of petals,\nplaylist made of gems."
-    },
-    {
-      "text": "The lane smells like mithai\nand sounds like your queue."
-    },
-    {
-      "text": "Diwali, but make it\nloud and golden."
-    },
-    {
-      "text": "The diyas are doing their thing.\nSo are the drums."
-    },
-    {
-      "text": "Between two ladoos,\na song break. Non-negotiable."
-    },
-    {
-      "text": "Neighbours' music is mid.\nYours? Chef's kiss."
-    },
-    {
-      "text": "Diwali cleaning is done.\nNow clean up the queue."
-    },
-    {
-      "text": "The festival of lights\nand also of loud choruses."
-    },
-    {
-      "text": "Somewhere a diya just flickered.\nThat's the bass. You're welcome."
-    },
-    {
-      "text": "Sweets, sparklers, songs.\nIn that order. Or any order."
-    },
-    {
-      "text": "Diwali is a vibe.\nBe the vibe. Play the track."
-    },
-    {
-      "text": "Aunty's asking about your salary.\nDrown her out. Politely."
-    },
-    {
-      "text": "Your outfit is festive.\nYour playlist is festive-er."
-    },
-    {
-      "text": "More lights than a runway.\nMore bass than a wedding."
-    },
-    {
-      "text": "The pooja thali is ready.\nThe playlist is readier."
-    },
-    {
-      "text": "Diwali night: half fireworks,\nhalf this queue."
-    },
-    {
-      "text": "Lit diyas, lit playlist.\nSame energy."
-    },
-    {
-      "text": "May your Diwali be\nbright, sweet and loudly scored."
-    },
-    {
-      "text": "Golden diyas,\ngolden hour, golden queue."
-    },
-    {
-      "text": "Somebody's lighting a chakri.\nYou're lighting a chorus."
-    },
-    {
-      "text": "Diwali feels like\none long music video. Starring you."
-    },
-    {
-      "text": "The house is glowing.\nSo is the aux cord."
-    },
-    {
-      "text": "Sweet boxes on the table,\nspeakers on the shelf. Harmony."
-    },
-    {
-      "text": "One more song before the aarti?\nObviously. It's Diwali."
-    },
-    {
-      "text": "Your family's Diwali card game\nneeds a dramatic soundtrack. Here."
-    },
-    {
-      "text": "Mithai coma loading.\nPlaylist as the lullaby."
-    },
-    {
-      "text": "Diwali but the plot twist:\nyou're the DJ now."
-    },
-    {
-      "text": "Lights up, doors open,\nmusic blaring. Diwali, done right."
-    },
-    {
-      "text": "The diyas flicker in rhythm.\nThat's not the wind. That's the beat."
-    },
-    {
-      "text": "Happy Diwali to the group chat\nthat's been forwarding memes all day."
-    },
-    {
-      "text": "Diwali morning ardas,\nevening bass drops. Balanced life."
-    },
-    {
-      "text": "Sweet box in one hand,\nskip button in the other. Multitasking."
-    },
-    {
-      "text": "Festive lights on the balcony,\nparty lights in the headphones."
-    },
-    {
-      "text": "The festival of lights\nis also the festival of vibes."
-    },
-    {
-      "text": "Diwali tip: play the song\nbefore the relatives ask you to sing."
-    },
-    {
-      "text": "A single diya on the windowsill,\na whole playlist in the room."
-    },
-    {
-      "text": "Neighbours are lighting firecrackers.\nYou're lighting up the queue."
-    },
-    {
-      "text": "Saffron, gold and bass.\nThe Diwali palette."
-    },
-    {
-      "text": "May your mithai be fresh\nand your playlist fresher."
-    },
-    {
-      "text": "Diwali nap interrupted\nby the perfect chorus. Worth it."
-    },
-    {
-      "text": "Family photos done.\nNow the fun begins. Press play."
-    },
-    {
-      "text": "Diwali without music is\njust a power cut. Don't."
-    },
-    {
-      "text": "One diya for the corner,\none track for the soul."
-    },
-    {
-      "text": "Your rangoli is symmetric.\nYour playlist? Beautifully chaotic."
-    },
-    {
-      "text": "Diwali is the one day\nthe aux cord is a family heirloom."
-    },
-    {
-      "text": "Fireworks in the sky,\nfire tracks in the ears."
-    },
-    {
-      "text": "The mithai is unlimited.\nThe queue is infinite. Good."
-    },
-    {
-      "text": "Somewhere between a diya\nand a drop, Diwali happens."
-    },
-    {
-      "text": "Hinglish mode on:\nDiyas jalaao, volume badhaao.",
-      "hours": "17-22"
-    },
-    {
-      "text": "Mummy bol rahi hain diya jalao.\nTum bol rahe ho volume jalao. Same thing."
-    },
-    {
-      "text": "Ladoo khaao, speaker bajao.\nYahi hai Diwali ka syllabus."
-    },
-    {
-      "text": "Aunty: 'Shaadi kab?'\nTum: *volume badha ke*. Classic move."
-    },
-    {
-      "text": "Soan papdi ka regifting season hai.\nPlaylist ka repetition season. Both allowed."
-    },
-    {
-      "text": "Rangoli banane mein time gaya,\nab gaana bhi chalao yaar."
-    },
-    {
-      "text": "Padosi ke patakhe full volume pe hain.\nTumhari playlist unse aage. Jeet tumhari."
-    },
-    {
-      "text": "Cousin bol raha hai 'DJ bano'.\nBhai, tum waise hi DJ ho. Flex karo."
-    },
-    {
-      "text": "Sweets khaake sugar rush?\nAb is rush ke liye track chahiye."
-    },
-    {
-      "text": "Shaam ka time, diya low flame pe.\nTumhara gaana high volume pe. Balance."
-    },
-    {
-      "text": "Aaj diet ka koi scene nahi.\nMithai khaao, song bajaao, repeat."
-    },
-    {
-      "text": "Puja mein sab shant the.\nAb tumhara speaker woh kaam karega."
-    },
-    {
-      "text": "Mummy ne poocha 'yeh kya baja rahe ho?'\nBolo 'Diwali special hai, mummy'."
-    },
-    {
-      "text": "Card party mein jeet gaye?\nPlaylist ka credit do."
-    },
-    {
-      "text": "Kaju katli khatam?\nKoi baat nahi, gaana to baaki hai."
-    },
-    {
-      "text": "Aunty ka 'beta kitna bada ho gaya' loop chal raha hai.\nTumhara gaana louder. Win."
-    },
-    {
-      "text": "Diya dhoop mein bujh gaya?\nPlaylist abhi bhi jal rahi hai."
-    },
-    {
-      "text": "Dost bol rahe hain 'boring Diwali'.\nBhai, aux tumhare paas hai. Fix karo."
-    },
-    {
-      "text": "Bhai ne chai banayi, tumne playlist banayi.\nTeamwork, Diwali edition."
-    },
-    {
-      "text": "Nazar wali aunty aa rahi hai.\nSpeaker zyada loud kar do."
-    },
-    {
-      "text": "Mithai box mein sirf soan papdi bachi hai.\nSad. Volume badha ke sad feelings bhulao."
-    },
-    {
-      "text": "Dadi bol rahi hain 'gaana band karo'.\nTum bologe 'thoda aur, dadi'. Try karo."
-    },
-    {
-      "text": "Cracker ka dhuan, gaane ka bass.\nDono nasal band kar rahe hain. Worth it."
-    },
-    {
-      "text": "Ghar ki safai ho gayi.\nAb queue ki safai karo. Kachra hataao."
-    },
-    {
-      "text": "Bhaiya bol rahe hain DJ night hai.\nBhaiya, Diwali hai, har raat DJ night hai."
-    },
-    {
-      "text": "Naye kapde pehen liye?\nAb naya gaana bhi chala lo. Full set."
-    },
-    {
-      "text": "Mummy ki rangoli, tumhara playlist.\nGhar ka art department ready hai."
-    },
-    {
-      "text": "Relative bol rahe hain 'gaana suna do'.\nTum speaker loud karke bhaag jao. Pro move."
-    },
-    {
-      "text": "Chakri ghoom rahi hai, gaana chal raha hai.\nSymphony in the gali."
-    },
-    {
-      "text": "Shaadi ka topic phir se aa gaya?\nEarphones in. Volume 100. Problem solved."
-    },
-    {
-      "text": "Mithai ki plate empty, mood full.\nPerfect Diwali combo."
-    },
-    {
-      "text": "Aaj ke plans: khaana, sona, gaana.\nIn that order. Har order."
-    },
-    {
-      "text": "Diya jalta hai, dil bhi.\nGaana baja ke aur jala do."
-    },
-    {
-      "text": "Bhai ne poocha 'kya sun rahe ho?'\nBolo 'Diwali ki aatma'. Samajh jayega."
-    },
-    {
-      "text": "Aunty ke sawaalon se bachne ka\nsabse best tareeka: speaker on."
-    },
-    {
-      "text": "Group photo ke liye sab ready hain.\nTum background music ke liye ready ho. Hero."
-    },
-    {
-      "text": "Soan papdi ko regift karna\nplaylist skip karne jitna hi galat hai. Don't."
-    },
-    {
-      "text": "Late night patakhe,\nlate night gaane. Match made in Diwali."
-    },
-    {
-      "text": "Mithai khatam, gaana khatam nahi.\nLoop pe chalao."
-    },
-    {
-      "text": "Bhai bol raha hai 'aaj sone ka nahi'.\nCorrect bhai. Diwali hai."
-    },
-    {
-      "text": "Dadi ki aarti, tumhara bass.\nDo alag concerts, ek ghar."
-    },
-    {
-      "text": "Padosi ne shikayat ki.\nTumne volume aur badha diya. Classic."
-    },
-    {
-      "text": "Khoya, kaju, pista, bass.\nDiwali ka thali, DJ edition."
-    },
-    {
-      "text": "Bhai ka 'main DJ hoon' claim aa gaya.\nAux chheen lo, haq jataao."
-    },
-    {
-      "text": "Aaj ka motto:\nDiyas jalao, mithai khaao, gaana bajaao."
-    },
-    {
-      "text": "Cousin ne gaana change karna chaha.\nNahi. Diwali hai, respect the queue."
-    },
-    {
-      "text": "Ghar walon ka 'volume kam karo' loop chal raha hai.\nTumhara gaana usse louder. Natural order."
-    },
-    {
-      "text": "Diwali wish bhejni hai?\nPlaylist link ke saath bhejo. Asli wish wohi hai."
-    },
-    {
-      "text": "Mummy bol rahi hain 'kuch gaao'.\nTum speaker pe chala do. Smart jugaad."
-    },
-    {
-      "text": "Aunty: 'beta, gaana suna do'.\nTum: *speaker loud*. Kaam ho gaya."
-    },
-    {
-      "text": "Firecracker se zyada awaaz\ntumhare gaane ki hai. Proud moment."
-    },
-    {
-      "text": "Ladoo khaake energy aa gayi?\nAb is energy ko track chahiye. Go."
-    },
-    {
-      "text": "Relative ka sawaal, tumhara volume.\nDirect proportion. Science."
-    },
-    {
-      "text": "Diwali ka asli flex:\ntumhara playlist sabko pasand aaya."
-    },
-    {
-      "text": "Chai, mithai, gaana.\nRepeat. Yahi Diwali hai."
-    },
-    {
-      "text": "Dadi ne poocha 'yeh kaun ga raha hai?'\nBolo 'naya zamana, dadi'. Smile karo."
-    },
-    {
-      "text": "Ghar ki safai ke baad\ngaane ki safai bhi zaroori hai. Start."
-    },
-    {
-      "text": "Aaj ka Diwali resolution:\nkoi gaana skip nahi karna. Challenge accepted?"
-    },
-    {
-      "text": "Mithai ka dabba khaali,\nspeaker ka battery full. Perfect."
-    },
-    {
-      "text": "Aunty ne poocha 'padhai kaisi chal rahi hai?'\nBass drop. Conversation over."
-    },
-    {
-      "text": "Bhai: 'aaj party hai'.\nTum: 'playlist ready hai'. Bas."
-    },
-    {
-      "text": "Neighbour ke patakhe,\ntumhara gaana. Awaaz ka muqabla. Jeeto."
-    },
-    {
-      "text": "Mummy ki aarti, tumhara chorus.\nGhar mein do concerts. Dono hit."
-    },
-    {
-      "text": "Rangoli ke rang, speaker ke beat.\nDiwali ka full package."
-    },
-    {
-      "text": "Cousin bol raha hai 'boring ho gaya'.\nBro, aux tumhare paas hai. Show karo."
-    },
-    {
-      "text": "Bhai ka card game, tumhara gaana.\nDono mein bluff chal raha hai. Fun."
-    },
-    {
-      "text": "Aaj koi 'kaam kab karoge' nahi poochega.\nDiwali hai. Bas gaana bajaao."
-    }
+    { "text": "Up before mom's safai alarm?\nSmart. Hide in here.", "hours": "5-6" },
+    { "text": "Morning, {name}.\nThe kaju katli won't eat itself.", "hours": "7-8" },
+    { "text": "Breakfast: three ladoos.\nNutritionist: on Diwali leave.", "hours": "9-10" },
+    { "text": "Dhanteras shopping energy,\nbut make it a playlist.", "hours": "11-12" },
+    { "text": "Lunch at a relative's?\nEarphones in, fake smile on.", "hours": "12-13" },
+    { "text": "Mithai coma loading...\nPress play to fight it.", "hours": "14-15" },
+    { "text": "Fairy lights still tangled?\nSame. Play something.", "hours": "16-17" },
+    { "text": "Golden hour, diya hour,\nmain character hour.", "hours": "17-18" },
+    { "text": "Diyas lit, kurta on.\nNow the soundtrack.", "hours": "18-19" },
+    { "text": "Crackers started outside.\nThe real bass starts in here.", "hours": "19-20" },
+    { "text": "Card night's on.\nYour playlist has the best hand.", "hours": "20-21" },
+    { "text": "Dinner done, dessert round four.\nPlay something sweeter.", "hours": "21-22" },
+    { "text": "Neighbours still on rockets?\nDrown them out, politely.", "hours": "22-23" },
+    { "text": "Late night, last anar.\nOne more song. Fine, two.", "hours": "23-0" },
+    { "text": "Midnight, and the rockets\nhaven't heard of sleep either.", "hours": "0-1" },
+    { "text": "Late-night fridge raid for ladoos?\nThat needs a soundtrack.", "hours": "2-4" },
+
+    { "text": "Itni subah uth gaye?\nSafai duty se pehle ek gaana.", "hours": "5-6" },
+    { "text": "Good morning ji!\nAaj ka menu: ladoo aur bass.", "hours": "7-8" },
+    { "text": "Nashte mein mithai?\nDiwali hai, sab maaf hai.", "hours": "9-10" },
+    { "text": "Mummy: 'Jaale saaf kar.'\nTum: volume up kar.", "hours": "11-12" },
+    { "text": "Lunch heavy tha?\nToh playlist bhi heavy chahiye.", "hours": "12-13" },
+    { "text": "Kaju katli ke baad neend?\nYe gaana jagayega.", "hours": "14-15" },
+    { "text": "Lights ki wiring suljhao,\ngaana hum chalate hain.", "hours": "16-17" },
+    { "text": "Diye jalane ka time.\nVibe jalane ka bhi.", "hours": "17-18" },
+    { "text": "Naye kapde, nayi selfie.\nAb naya gaana bhi.", "hours": "18-19" },
+    { "text": "Bahar pataakhe,\nandar asli dhamaka.", "hours": "19-20" },
+    { "text": "Teen patti shuru?\nBluff kam, bass zyada.", "hours": "20-21" },
+    { "text": "Dinner ke baad mithai,\nmithai ke baad gaane.", "hours": "21-22" },
+    { "text": "Padosi abhi bhi rockets pe?\nHum bass pe.", "hours": "22-23" },
+    { "text": "Last anaar, last gaana.\nPakka. Shayad.", "hours": "23-0" },
+    { "text": "12 baj gaye, pataakhe nahi ruke.\nTum bhi mat ruko.", "hours": "0-1" },
+    { "text": "Raat ko fridge se ladoo chori?\nChori mein bhi music chahiye.", "hours": "2-4" },
+
+    { "text": "Soan papdi box spotted.\nIt's been regifted since 2019." },
+    { "text": "A relative just asked your marks.\nThat's your cue for headphones." },
+    { "text": "Found Rs 50 in old jeans.\nDiwali cleaning finally paid." },
+    { "text": "Your diet applied for Diwali leave.\nRequest approved." },
+    { "text": "Rangoli took three hours.\nThe dog took three seconds." },
+    { "text": "One bulb dies, the whole string dies.\nFairy lights are dramatic." },
+    { "text": "Just looking like a wow:\nyou, in the new kurta." },
+    { "text": "Moye moye is when the anar\nturns out to be a dud." },
+    { "text": "Family group: 47 diya GIFs.\nYou: one great song." },
+    { "text": "AQI is 400.\nYour taste is 1000." },
+    { "text": "Gift idea: dry fruits.\nGift reality: dry fruits, again." },
+    { "text": "Sharma ji's son lit 51 diyas.\nYou lit the vibe. Tie." },
+    { "text": "Who lit the anar upside down?\nBinod." },
+    { "text": "Crush viewed your rangoli story?\nPlay something romantic." },
+    { "text": "Kids get phuljhadis.\nYou get the aux. Same power." },
+    { "text": "Mom: 'Hand out these sweets.'\nAlso mom: 'Not those ones.'" },
+    { "text": "Dhanteras: everyone bought gold.\nYou bought nothing. Free vibes." },
+    { "text": "The pressure cooker whistled\nlouder than the crackers." },
+    { "text": "New outfit: on.\nPrice tag: also on. Check." },
+    { "text": "Dad guarding the sutli bomb\nlike he's on bomb squad duty." },
+    { "text": "Be the diya, not the dud.\nPress play." },
+    { "text": "Cracker-free zone: your ears.\nBass-only zone, actually." },
+
+    { "text": "Soan papdi ka dabba\nghoom ke wapas aa gaya." },
+    { "text": "Chachi: 'Beta, aage kya plan hai?'\nPlan: ye playlist." },
+    { "text": "Marks pooche koi?\nEarphones lagao, instant mute." },
+    { "text": "Safai mein mila purana charger.\nAur 2019 ka trauma." },
+    { "text": "Moye moye ho gaya,\nanaar phata hi nahi." },
+    { "text": "Rasode mein kaun tha?\nLadoo gayab hain." },
+    { "text": "Itna sannata kyun hai bhai?\nPlay dabao." },
+    { "text": "Pushpa jhukega nahi,\npar mithai ke aage jhuk gaya." },
+    { "text": "Sharma ji ke bete ne 101 diye jalaye.\nTumne vibe jalayi." },
+    { "text": "So beautiful, so elegant,\njust looking like a rangoli." },
+    { "text": "Mummy ki rangoli pe pair pad gaya?\nBhaago, gaana baad mein." },
+    { "text": "Diwali bonus nahi mila?\nBass bonus le lo." },
+    { "text": "Last kaju katli koi nahi uthata.\nTum utha lo. Legend." },
+    { "text": "Gift mein phir dry fruits?\nKoi na, gaane toh fresh hain." },
+    { "text": "Padosi ki lights zyada bright?\nTumhari playlist zyada lit." },
+    { "text": "Phuljhadi chhoti, attitude bada.\nBilkul tumhari tarah." },
+    { "text": "Uncle ka 'Happy Diwali' GIF\nphir se aaya. Volume badhao." },
+    { "text": "Bahut hard, bahut hard:\ntumhara Diwali outfit." },
+    { "text": "Paisa hi paisa hoga?\nPehle gaana hi gaana." },
+    { "text": "Dhanteras: sab sona khareed rahe.\nTum bas so rahe." },
+    { "text": "Ek aur ladoo?\nControl, Uday, control." },
+    { "text": "Kitne diye the?\n51, Sardar. Ab gaana chalao." }
   ],
   "stats": [
-    {
-      "text": "Diya lit.\n{song} on."
-    },
-    {
-      "text": "{artist} on Diwali?\nRespect."
-    },
-    {
-      "text": "{song} is brighter\nthan the whole lane's lights."
-    },
-    {
-      "text": "More {lastartist}?\nSecond helping, like the sweets."
-    },
-    {
-      "text": "You've seen {topartist} more\nthan your relatives this week."
-    },
-    {
-      "text": "{topsong} on repeat\nlike Diwali forwards on WhatsApp."
-    },
-    {
-      "text": "{song} in your Likes?\nThat's sweet box material."
-    },
-    {
-      "text": "{topartist} deserves\na sweet box from you."
-    },
-    {
-      "text": "Diwali cleaning\nto {topsong} again?"
-    },
-    {
-      "text": "{lastartist} last time.\nWho's lighting it up tonight?"
-    },
-    {
-      "text": "{song} hits harder\nthan a sutli bomb."
-    },
-    {
-      "text": "If {topartist} came over\nyou'd share the kaju katli. Maybe."
-    },
-    {
-      "text": "{topsong} played that much\nhas earned a Diwali bonus."
-    },
-    {
-      "text": "{artist} in,\ncrackers drowned out."
-    },
-    {
-      "text": "{song} is the phuljhadi\nof your playlist."
-    },
-    {
-      "text": "{song} count: higher\nthan the diyas on your balcony."
-    },
-    {
-      "text": "{topartist} supremacy.\nDiwali official."
-    },
-    {
-      "text": "You lit more diyas\nor played more {topartist}? Be honest."
-    },
-    {
-      "text": "{song} — the anar\nof your Diwali queue."
-    },
-    {
-      "text": "More {artist} today\nthan ladoos eaten. Impressive."
-    },
-    {
-      "text": "Your Diwali rangoli:\nmade of {topsong} loops."
-    },
-    {
-      "text": "{lastartist} one more time?\nThat's festive dedication."
-    },
-    {
-      "text": "{topsong} earned\na mithai box of its own."
-    },
-    {
-      "text": "Diwali card party,\n{topartist} on the side. Winner."
-    },
-    {
-      "text": "{song} on loop\nsince the first diya. Legend."
-    },
-    {
-      "text": "{topartist} ka Diwali\nspecial hai. Confirm."
-    },
-    {
-      "text": "{topsong} ne aaj\npoore mohalle ko hila diya."
-    },
-    {
-      "text": "{artist} ka repeat\nmithai se zyada chal raha hai."
-    },
-    {
-      "text": "{topartist} ke bina\nDiwali adhoori hai. Fact."
-    },
-    {
-      "text": "{song} ki demand\nsoan papdi se zyada hai."
-    },
-    {
-      "text": "Aaj ke Diwali stats:\n{song} > patakhe."
-    },
-    {
-      "text": "{lastartist} ko bonus do,\nDiwali hai."
-    },
-    {
-      "text": "{topsong} ka loop\nDiwali ki asli aarti hai."
-    },
-    {
-      "text": "{artist} itna baja\nki padosi jealous hain. Good."
-    },
-    {
-      "text": "Mithai khatam, {topsong} nahi.\nBalance maintained."
-    },
-    {
-      "text": "{song} ki awaaz\nfirecracker se zyada. Proud."
-    },
-    {
-      "text": "{topartist} is your\nDiwali ka asli Lakshmi. Kidding. Sort of."
-    }
+    { "text": "{song}?\nBrighter than the balcony lights.", "playing": true },
+    { "text": "{artist} at Diwali night?\nGuest list approved.", "playing": true },
+    { "text": "{plays} plays of {song}.\nSoan papdi rotates less.", "min": { "plays": 5 } },
+    { "text": "{today} songs today.\nMore than the diyas you lit.", "min": { "today": 10 } },
+    { "text": "{today} songs and counting.\nThe crackers can't keep up.", "min": { "today": 25 } },
+    { "text": "{liked} liked songs.\nBigger stash than the mithai box.", "min": { "liked": 30 } },
+    { "text": "{topsong}, {topsongplays} times.\nFamily WhatsApp forward levels.", "min": { "topsongplays": 8 } },
+    { "text": "{topartist}: {topartistplays} plays.\nInvite them for dinner already.", "min": { "topartistplays": 10 } },
+    { "text": "From {lastartist} to {artist}.\nSmooth like a gulab jamun.", "playing": true },
+    { "text": "{likedsong} got your heart.\nKaju katli tier." },
+    { "text": "{artists} artists this week.\nBigger than the Diwali guest list.", "min": { "artists": 8 } },
+    { "text": "{bigplaylist}: {bigplaylistsongs} songs.\nLonger than mom's safai list.", "min": { "bigplaylistsongs": 20 } },
+    { "text": "Happy {weekday}.\nDiwali mode doesn't take days off." },
+    { "text": "{song} is liked.\nGood. It earned its ladoo.", "playing": true, "liked": true },
+    { "text": "{song} not liked yet?\nWhat is it, soan papdi?", "playing": true, "liked": false },
+    { "text": "{song} at this hour?\nEven the rockets went to bed.", "playing": true, "hours": "1-4" },
+    { "text": "{likedartist}: {likedartistsongs} likes.\nFan club, Diwali edition.", "min": { "likedartistsongs": 5 } },
+    { "text": "{playlists} playlists?\nNeater than your Diwali cleaning.", "min": { "playlists": 3 } },
+    { "text": "{last}, then {song}.\nA chai-and-mathri combo.", "playing": true },
+    { "text": "{topsong} topped your week.\nGive it a diya." },
+
+    { "text": "{song} chal raha hai?\nPadosi ke pataakhe fail.", "playing": true },
+    { "text": "{artist} on aux?\nBhai, ek number choice.", "playing": true },
+    { "text": "{song}, {plays} baar?\nBhai kya kar raha hai tu.", "min": { "plays": 5 } },
+    { "text": "Aaj {today} gaane?\nDiye kam pad gaye.", "min": { "today": 10 } },
+    { "text": "{today} gaane aaj.\nSafai se bach rahe ho na?", "min": { "today": 20 } },
+    { "text": "{liked} liked gaane.\nMithai ka dabba bhi itna nahi bhara.", "min": { "liked": 30 } },
+    { "text": "{topsong}, {topsongplays} baar?\nGaana bhi bolega, 'bas kar pagle.'", "min": { "topsongplays": 8 } },
+    { "text": "{topartist} ko {topartistplays} plays.\nDiwali gift bhejna banta hai.", "min": { "topartistplays": 10 } },
+    { "text": "{lastartist} se {artist} tak.\nKya transition hai, uff.", "playing": true },
+    { "text": "{likedsong} ko dil diya?\nLadoo deserve karta hai." },
+    { "text": "Is hafte {artists} artists.\nItne rishtedaar bhi nahi aaye.", "min": { "artists": 8 } },
+    { "text": "{bigplaylist}: {bigplaylistsongs} gaane.\nDiwali lights se bhi lamba.", "min": { "bigplaylistsongs": 20 } },
+    { "text": "{weekday} hai, Diwali week hai.\nBahana mat do, play karo." },
+    { "text": "{song} liked hai.\nTaste: so beautiful, so elegant.", "playing": true, "liked": true },
+    { "text": "{song} abhi tak liked nahi?\nIsko soan papdi samjha kya?", "playing": true, "liked": false },
+    { "text": "{song}, raat ke is time?\nPataakhe so gaye, tum nahi.", "playing": true, "hours": "1-4" },
+    { "text": "{likedartist} ke {likedartistsongs}\nliked gaane. Pakka fan.", "min": { "likedartistsongs": 5 } },
+    { "text": "{playlists} playlists?\nAlmirah se zyada organised.", "min": { "playlists": 3 } },
+    { "text": "{last}, phir {song}.\nChai-samosa jaisa combo.", "playing": true },
+    { "text": "{topsong} is hafte top pe.\nIsko bhi mithai do." }
   ],
   "days": [
     {
       "date": "2026-11-08",
       "greetings": [
-        {
-          "text": "Happy Diwali, {name}!\nLight it up."
-        },
-        {
-          "text": "Happy Diwali!\nMay your queue never run out."
-        },
-        {
-          "text": "It's Diwali!\nShine brighter than every diya."
-        },
-        {
-          "text": "Happy Diwali!\nSweets in one hand, music in the other."
-        },
-        {
-          "text": "Happy Diwali!\nLights, sweets and {topsong}."
-        },
-        {
-          "text": "Today's the day.\nEvery diya lit, every banger played."
-        },
-        {
-          "text": "Happy Diwali, {name}.\nBe louder than the crackers."
-        },
-        {
-          "text": "Happy Diwali!\nMore light, more music, less soan papdi."
-        },
-        {
-          "text": "Happy Diwali!\nMay this year sound like {topsong}."
-        },
-        {
-          "text": "Happy Diwali!\nHere's to light winning, again."
-        },
-        {
-          "text": "Shubh Deepavali!\nLet the diyas dance and the speakers sing."
-        },
-        {
-          "text": "Happy Diwali, {name}!\nToday the whole world glows."
-        },
-        {
-          "text": "Diwali morning, {name}.\nDiyas out, bass up."
-        },
-        {
-          "text": "Happy Diwali!\nMay your home shine and your playlist shine harder."
-        },
-        {
-          "text": "It's Diwali!\nEat, light, play, repeat."
-        },
-        {
-          "text": "Happy Diwali!\nMay {topartist} bless your day."
-        },
-        {
-          "text": "The diyas are lit.\nThe queue is too. Happy Diwali!"
-        },
-        {
-          "text": "Happy Diwali!\nLight over dark, music over noise."
-        },
-        {
-          "text": "Diwali vibes only.\nLet's go, {name}."
-        },
-        {
-          "text": "Happy Diwali!\nAaj sab bright hai, tum bhi."
-        },
-        {
-          "text": "Shubh Deepavali, {name}!\nDiyas jalao, volume badhaao."
-        },
-        {
-          "text": "Diwali hai bhai!\nMithai khaao, gaana bajaao."
-        },
-        {
-          "text": "Aaj ka plan:\nPuja, mithai, gaana, repeat."
-        },
-        {
-          "text": "Happy Diwali!\nAaj koi 'kaam' nahi, sirf 'gaana'."
-        },
-        {
-          "text": "Diwali Mubarak, {name}!\nSpeaker full, ghar full, khushi full."
-        },
-        {
-          "text": "Aaj sabse bright cheez\ntumhara playlist hai. Happy Diwali!"
-        },
-        {
-          "text": "Happy Diwali!\nAunty ke sawaal ignore, gaana full loud."
-        },
-        {
-          "text": "Diwali ki hardik shubhkamnayein!\nAb gaana chalao."
-        },
-        {
-          "text": "Aaj ka Diwali motto:\nMithai unlimited, skips zero."
-        },
-        {
-          "text": "Shubh Diwali!\nDiyas jalaye, bass giraaye."
-        }
+        { "text": "Happy Diwali, {name}!\nShine brighter than the anar." },
+        { "text": "Puja done, prasad done.\nNow the music. Happy Diwali!" },
+        { "text": "Happy Diwali!\nMay your queue outlast the crackers." },
+        { "text": "Happy Diwali!\nNo soan papdi was harmed today. Yet." },
+        { "text": "Diwali night with {topsong}?\nIconic." },
+        { "text": "Happy Diwali!\nOut with the dust, in with the bass." },
+
+        { "text": "Happy Diwali, {name}!\nAaj full dhamaka, no moye moye." },
+        { "text": "Shubh Deepavali!\nDiye jalao, gaane bajao." },
+        { "text": "Aaj Diwali hai!\nMithai unlimited, gaane bhi." },
+        { "text": "Happy Diwali!\nHow's the josh? High, sir!" },
+        { "text": "Diwali pe {topsong}?\nAapka taste, ek number." },
+        { "text": "Happy Diwali!\nAndhera gaya, bass aaya." }
       ]
     }
   ],
   "topArtist": [
-    {
-      "text": "{topartist} is today's\nbrightest diya."
-    },
-    {
-      "text": "Today's Diwali headliner:\n{topartist}."
-    },
-    {
-      "text": "{topartist} lit up\nyour whole day."
-    },
-    {
-      "text": "More {topartist}\nthan crackers today."
-    },
-    {
-      "text": "{topartist} gets\nthe first sweet today."
-    },
-    {
-      "text": "Your rangoli today\nis all {topartist}."
-    },
-    {
-      "text": "Your Diwali playlist,\nsponsored by {topartist}."
-    },
-    {
-      "text": "{topartist} — the\nmain diya of your day."
-    },
-    {
-      "text": "{topartist} on Diwali\nis a whole festival within a festival."
-    },
-    {
-      "text": "Light a diya\nfor {topartist}."
-    },
-    {
-      "text": "{topartist} ka jalwa\nDiwali pe full hai."
-    },
-    {
-      "text": "Aaj ke Diwali ke star:\n{topartist}. No debate."
-    },
-    {
-      "text": "{topartist} ne aaj\npoore ghar ko nacha diya."
-    },
-    {
-      "text": "Mithai {topartist} ko\npehle milegi. Rule hai."
-    },
-    {
-      "text": "{topartist} ki awaaz\npatakhe se loud. Confirm."
-    }
+    { "text": "{topartist} today.\nBrighter than every diya on the street." },
+    { "text": "{topartist} ran your Diwali.\nThe crackers just opened." },
+    { "text": "{minutes} minutes today.\nMostly {topartist}. Iconic." },
+    { "text": "{topartist} gets\nthe last kaju katli today." },
+    { "text": "{name}'s Diwali headliner:\n{topartist}." },
+    { "text": "Rangoli colours: optional.\n{topartist}: mandatory." },
+
+    { "text": "Aaj ka Diwali star:\n{topartist}." },
+    { "text": "{topartist} ne aaj\nsab pataakhon ko hara diya." },
+    { "text": "{topartist} ko aaj\npehla ladoo milega." },
+    { "text": "{minutes} minute, mostly {topartist}.\nBhai, ek number." },
+    { "text": "{name}, aaj toh\n{topartist} hi {topartist}." },
+    { "text": "{topartist} ke bina\nye Diwali adhoori hai." }
   ]
 }
