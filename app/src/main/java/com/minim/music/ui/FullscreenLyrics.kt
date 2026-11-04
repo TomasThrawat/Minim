@@ -23,6 +23,7 @@ import androidx.core.view.doOnPreDraw
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.minim.music.R
+import com.minim.music.data.ai.LyricLanguage
 import com.minim.music.data.model.LyricsData
 import com.minim.music.util.ArtworkPipeline
 import kotlinx.coroutines.CoroutineScope
@@ -70,6 +71,12 @@ class FullscreenLyrics(
         fun seekToLyric(lineStartMs: Long)
         /** The mix, ink or state changed: status bar icons, nav bar colour, status cover. */
         fun onChromeChanged()
+        /** 5.6.0: the phone's saved English translation of [data] (one entry per line), or null. Never calls Gemini. */
+        suspend fun savedTranslation(data: LyricsData): List<String?>?
+        /** 5.6.0: [data] translated by Gemini (one call per song, then saved). Throws when it fails. */
+        suspend fun translateLyrics(data: LyricsData): List<String?>
+        /** 5.6.0: the app's small tap haptic. */
+        fun tapHaptic(v: View)
     }
 
     enum class State { CLOSED, OPENING, OPEN, CLOSING }
@@ -87,7 +94,20 @@ class FullscreenLyrics(
     private val pulse: ImageView = overlay.findViewById(R.id.fs_pulse)
     val bar: ProgressLine = overlay.findViewById(R.id.fs_bar)
 
-    private val adapter = FullscreenLyricsAdapter(ResourcesCompat.getFont(overlay.context, R.font.poppins_semibold))
+    private val adapter = FullscreenLyricsAdapter(
+        ResourcesCompat.getFont(overlay.context, R.font.poppins_semibold),
+        ResourcesCompat.getFont(overlay.context, R.font.poppins_regular)
+    )
+    /** 5.6.0: AI translation button (top right) and its failure note (top middle). */
+    private val translateBtn: ImageView = overlay.findViewById(R.id.fs_translate)
+    private val translateNote: TextView = overlay.findViewById(R.id.fs_translate_note)
+    private val translateOnBg = android.graphics.drawable.GradientDrawable().apply {
+        shape = android.graphics.drawable.GradientDrawable.OVAL
+    }
+    private val translateNoteBg = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = 40f * overlay.resources.displayMetrics.density
+    }
+
     private val layoutManager = LinearLayoutManager(overlay.context)
 
     var state: State = State.CLOSED
@@ -128,6 +148,18 @@ class FullscreenLyrics(
     private var barStartX = 0f
     private var barStartY = 0f
 
+    // 5.6.0: translation state
+    /** Which lines are English, skipped or other, for the lyrics showing now. */
+    private var langPlan: LyricLanguage.Plan? = null
+    /** The translate button is on. Stays on for the next songs until it's tapped off or this screen closes. */
+    private var translateOn = false
+    private var translateJob: Job? = null
+    private var revealAnim: ValueAnimator? = null
+    private var fadeAnim: ValueAnimator? = null
+    private var translatingAnim: ValueAnimator? = null
+    /** While the space under the lines opens or closes, keep the active line in the middle. */
+    private var keepCentred = false
+
     private val useRenderEffect = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     private val bigPx: Int get() = res.displayMetrics.widthPixels.coerceIn(720, 1440)
     private val enterEase = PathInterpolator(0.3f, 0f, 0.1f, 1f)
@@ -158,6 +190,10 @@ class FullscreenLyrics(
         if (useRenderEffect) applyRenderBlur()
         bar.onSeek = { f, finished -> host.seek(f, finished) }
         overlay.excludeView = bar
+        overlay.moreExcluded = listOf(translateBtn, translateNote)
+        translateBtn.setOnClickListener { onTranslateTapped() }
+        translateNote.setOnClickListener { retryTranslation() }
+        list.viewTreeObserver.addOnGlobalLayoutListener { if (keepCentred) keepActiveCentred() }
         overlay.onDoubleTap = { doubleTap() }
         // 5.1.0: tap a line to jump there
         overlay.tapBlocked = { list.scrollState != RecyclerView.SCROLL_STATE_IDLE }
@@ -175,6 +211,7 @@ class FullscreenLyrics(
             true
         }
         applyInk(ink, FullscreenLyricsLook.scrimColor(false, FullscreenLyricsLook.SCRIM_MIN))
+        placeTranslateControls()
     }
 
     // ------------------------------------------------------------------------------------------
@@ -187,6 +224,7 @@ class FullscreenLyrics(
         insetTop = top
         insetBottom = bottom
         applyPadding()
+        placeTranslateControls()
     }
 
     /** The playing song's cover URL (null when nothing is playing). */
@@ -228,6 +266,7 @@ class FullscreenLyrics(
             // Only seen when the song changes while this mode is open; part 2 blocks opening it
             showMessage(if (mode == NowPlayingLyricSlot.Mode.NONE) R.string.lyrics_unavailable else R.string.lyrics_loading)
         }
+        onLyricsForTranslation(if (mode == NowPlayingLyricSlot.Mode.LINES) data else null)
         if (state == State.CLOSED) return
         jumpToStart()
         if (state == State.OPEN && mode == NowPlayingLyricSlot.Mode.LINES) fadeInNewLines()
@@ -339,7 +378,7 @@ class FullscreenLyrics(
         if (active >= 0) activeLineView()?.onLinePosition(pos)
     }
 
-    private fun activeLineView(): LyricLineView? = layoutManager.findViewByPosition(active) as? LyricLineView
+    private fun activeLineView(): LyricLineView? = (layoutManager.findViewByPosition(active) as? LyricRow)?.line
 
     fun setProgress(fraction: Float) = bar.setFraction(fraction)
 
@@ -449,6 +488,7 @@ class FullscreenLyrics(
 
     private fun finishClose() {
         state = State.CLOSED
+        resetTranslation()
         updateFrameLoop()
         mixAnim = null
         list.removeCallbacks(resumeFollow)
@@ -484,6 +524,8 @@ class FullscreenLyrics(
         list.translationY = lift
         message.alpha = a * MESSAGE_ALPHA
         message.translationY = lift
+        translateBtn.alpha = a
+        translateNote.alpha = a
     }
 
     /** Where Now Playing's bar is, relative to where this bar rests at the bottom. */
@@ -821,13 +863,304 @@ class FullscreenLyrics(
         scrimColor = s
         scrim.setBackgroundColor(s)
         adapter.ink = i
-        for (c in 0 until list.childCount) (list.getChildAt(c) as? TextView)?.setTextColor(i)
+        for (c in 0 until list.childCount) {
+            val row = list.getChildAt(c) as? LyricRow ?: continue
+            row.line.setTextColor(i)
+            row.translation.ink = i
+        }
         message.setTextColor(i)
+        styleTranslateControls()
         pulse.imageTintList = ColorStateList.valueOf(i)
         updateBarColors()
     }
 
+    // ------------------------------------------------------------------------------------------
+    // 5.6.0: AI translation (English), one Gemini call per song, saved on the phone
+    // ------------------------------------------------------------------------------------------
+
+    /** New lyrics (or none): show the button only when they aren't English, and keep translating if it's on. */
+    private fun onLyricsForTranslation(data: LyricsData?) {
+        translateJob?.cancel()
+        translateJob = null
+        revealAnim?.cancel()
+        fadeAnim?.cancel()
+        keepCentred = false
+        setTranslating(false)
+        hideTranslateNote()
+        langPlan = data?.let { d -> LyricLanguage.plan(d.lines.map { it.text }) }
+        val show = langPlan?.showButton == true
+        translateBtn.visibility = if (show) View.VISIBLE else View.GONE
+        styleTranslateControls()
+        if (show && translateOn && state != State.CLOSED) startTranslation(animate = state == State.OPEN)
+    }
+
+    private fun onTranslateTapped() {
+        if (state != State.OPEN || translateBtn.visibility != View.VISIBLE) return
+        host.tapHaptic(translateBtn)
+        if (translateOn) {
+            translateOn = false
+            stopTranslation(animate = host.animationsOn())
+        } else {
+            translateOn = true
+            startTranslation(animate = host.animationsOn())
+        }
+        styleTranslateControls()
+    }
+
+    private fun retryTranslation() {
+        if (state != State.OPEN || translateNote.visibility != View.VISIBLE) return
+        host.tapHaptic(translateNote)
+        translateOn = true
+        startTranslation(animate = host.animationsOn())
+        styleTranslateControls()
+    }
+
+    /**
+     * The phone's copy shows straight away (no Gemini call). Otherwise shimmer bars appear under
+     * the non-English lines as the space opens, and Gemini's translation fades in over them.
+     */
+    private fun startTranslation(animate: Boolean) {
+        val data = lyrics ?: return
+        val plan = langPlan ?: return
+        hideTranslateNote()
+        translateJob?.cancel()
+        translateJob = scope.launch {
+            val saved = runCatching { host.savedTranslation(data) }.getOrNull()
+            if (lyrics !== data || !translateOn) return@launch
+            if (saved != null && saved.size == data.lines.size) {
+                showTranslations(saved, animate)
+                return@launch
+            }
+            val needs = BooleanArray(plan.kinds.size) { plan.kinds[it] == LyricLanguage.Kind.OTHER }
+            adapter.setLoading(needs)
+            rebindTranslations()
+            setTranslating(true)
+            openSpace(animate)
+            val result = try {
+                host.translateLyrics(data)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            if (lyrics !== data || !translateOn) return@launch
+            setTranslating(false)
+            if (result == null || result.size != data.lines.size) failTranslation(animate = host.animationsOn())
+            else showTranslations(result, host.animationsOn())
+        }
+    }
+
+    private fun showTranslations(result: List<String?>, animate: Boolean) {
+        val delays = if (animate) staggerDelays() else null
+        adapter.setReady(result, delays)
+        rebindTranslations()
+        if (adapter.reveal < 1f) openSpace(animate)
+        if (delays != null) runFade(delays.maxOrNull() ?: 0L)
+        else list.post { if (!userScrolling) scrollToActive(smooth = false) }
+    }
+
+    private fun failTranslation(animate: Boolean) {
+        closeSpace(animate) { showTranslateNote() }
+    }
+
+    private fun stopTranslation(animate: Boolean) {
+        translateJob?.cancel()
+        translateJob = null
+        fadeAnim?.cancel()
+        setTranslating(false)
+        hideTranslateNote()
+        closeSpace(animate) {}
+    }
+
+    /** Closing the screen turns translations off; the saved copy makes them instant next time. */
+    private fun resetTranslation() {
+        translateOn = false
+        translateJob?.cancel()
+        translateJob = null
+        revealAnim?.cancel()
+        fadeAnim?.cancel()
+        keepCentred = false
+        setTranslating(false)
+        hideTranslateNote()
+        adapter.setTranslationsOff()
+        adapter.reveal = 0f
+        rebindTranslations()
+        styleTranslateControls()
+    }
+
+    /** Top to bottom: each visible row starts its fade a little after the one above. */
+    private fun staggerDelays(): LongArray {
+        val n = adapter.itemCount
+        val first = layoutManager.findFirstVisibleItemPosition().takeIf { it >= 0 } ?: 0
+        val last = layoutManager.findLastVisibleItemPosition().takeIf { it >= first } ?: (first + 12)
+        return LongArray(n) { i -> (i - first).coerceIn(0, last - first + 1) * TRANSLATION_STAGGER_MS }
+    }
+
+    private fun runFade(lastDelay: Long) {
+        fadeAnim?.cancel()
+        val total = lastDelay + FullscreenLyricsAdapter.TRANSLATION_FADE_MS
+        fadeAnim = ValueAnimator.ofFloat(0f, total.toFloat()).apply {
+            duration = total
+            interpolator = null
+            addUpdateListener {
+                adapter.fadeElapsedMs = (it.animatedValue as Float).toLong()
+                keepCentred = true
+                rebindTranslations()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    adapter.fadeElapsedMs = Long.MAX_VALUE
+                    rebindTranslations()
+                    if (fadeAnim === animation) fadeAnim = null
+                    settleCentre()
+                }
+            })
+            start()
+        }
+    }
+
+    /** Opens the space under every line (translations or shimmer bars slide in). */
+    private fun openSpace(animate: Boolean) = animateReveal(1f, animate, REVEAL_OPEN_MS) {}
+
+    /** Closes it again; [then] runs once the lines sit together like before. */
+    private fun closeSpace(animate: Boolean, then: () -> Unit) = animateReveal(0f, animate, REVEAL_CLOSE_MS) {
+        adapter.setTranslationsOff()
+        rebindTranslations()
+        then()
+    }
+
+    private fun animateReveal(to: Float, animate: Boolean, ms: Long, end: () -> Unit) {
+        revealAnim?.cancel()
+        val from = adapter.reveal
+        if (!animate || from == to || state != State.OPEN) {
+            adapter.reveal = to
+            rebindTranslations()
+            end()
+            list.post { if (!userScrolling) scrollToActive(smooth = false) }
+            return
+        }
+        revealAnim = ValueAnimator.ofFloat(from, to).apply {
+            duration = ms
+            interpolator = enterEase
+            addUpdateListener {
+                adapter.reveal = it.animatedValue as Float
+                keepCentred = true
+                rebindTranslations()
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                private var cancelled = false
+                override fun onAnimationCancel(animation: Animator) { cancelled = true }
+                override fun onAnimationEnd(animation: Animator) {
+                    if (revealAnim === animation) revealAnim = null
+                    if (cancelled) return
+                    end()
+                    settleCentre()
+                }
+            })
+            start()
+        }
+    }
+
+    /** After the space has moved: stop correcting every frame and glide to the exact middle. */
+    private fun settleCentre() {
+        if (revealAnim != null || fadeAnim != null) return
+        keepCentred = false
+        list.post { if (!userScrolling && state == State.OPEN) scrollToActive(smooth = host.animationsOn()) }
+    }
+
+    private fun rebindTranslations() {
+        for (i in 0 until list.childCount) {
+            val holder = list.getChildViewHolder(list.getChildAt(i)) as? FullscreenLyricsAdapter.Holder ?: continue
+            val pos = holder.bindingAdapterPosition
+            if (pos != RecyclerView.NO_POSITION) adapter.bindTranslation(holder, pos)
+        }
+    }
+
+    /**
+     * Rows grow from the top of the list down, which would push the active line off the
+     * middle: after each layout, move it back (only while following the song).
+     */
+    private fun keepActiveCentred() {
+        if (!adapter.synced || userScrolling || state != State.OPEN) return
+        if (list.scrollState != RecyclerView.SCROLL_STATE_IDLE) return
+        val target = FullscreenLyricsLook.scrollTarget(active, adapter.itemCount)
+        val w = layoutManager.findViewByPosition(target) ?: return
+        val dy = FullscreenLyricsLook.centreDelta(w.top, w.bottom, list.paddingTop, list.height - list.paddingBottom)
+        if (dy != 0) list.scrollBy(0, dy)
+    }
+
+    /** The button gently pulses while Gemini works. */
+    private fun setTranslating(on: Boolean) {
+        translatingAnim?.cancel()
+        translatingAnim = null
+        if (!on || !host.animationsOn()) {
+            translateBtn.imageAlpha = 255
+            if (on) translateBtn.announceForAccessibility(res.getString(R.string.fs_translating))
+            return
+        }
+        translateBtn.announceForAccessibility(res.getString(R.string.fs_translating))
+        translatingAnim = ValueAnimator.ofFloat(1f, TRANSLATING_MIN_ALPHA).apply {
+            duration = TRANSLATING_PULSE_MS
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener { translateBtn.imageAlpha = ((it.animatedValue as Float) * 255).toInt() }
+            start()
+        }
+    }
+
+    private fun showTranslateNote() {
+        styleTranslateControls()
+        translateNote.visibility = View.VISIBLE
+        translateNote.alpha = 0f
+        translateNote.animate().alpha(FullscreenLyricsLook.linesAlpha(mix)).setDuration(220L).start()
+    }
+
+    private fun hideTranslateNote() {
+        translateNote.animate().cancel()
+        translateNote.visibility = View.GONE
+    }
+
+    private fun placeTranslateControls() {
+        val top = insetTop + dp(TRANSLATE_TOP_DP).toInt()
+        (translateBtn.layoutParams as? FrameLayout.LayoutParams)?.let {
+            if (it.topMargin != top) {
+                it.topMargin = top
+                translateBtn.layoutParams = it
+            }
+        }
+        val noteTop = top + dp(TRANSLATE_NOTE_SHIFT_DP).toInt()
+        (translateNote.layoutParams as? FrameLayout.LayoutParams)?.let {
+            if (it.topMargin != noteTop) {
+                it.topMargin = noteTop
+                translateNote.layoutParams = it
+            }
+        }
+    }
+
+    /** Ink colours; a soft filled circle behind the icon while translations are on. */
+    private fun styleTranslateControls() {
+        translateBtn.imageTintList = ColorStateList.valueOf(ink)
+        translateOnBg.setColor((ink and 0x00FFFFFF) or (TRANSLATE_ON_FILL shl 24))
+        val bg = if (translateOn) translateOnBg else null
+        if (translateBtn.background !== bg) translateBtn.background = bg
+        val desc = res.getString(if (translateOn) R.string.fs_translate_hide else R.string.fs_translate_show)
+        if (translateBtn.contentDescription != desc) translateBtn.contentDescription = desc
+        translateNote.setTextColor(ink)
+        translateNoteBg.setColor((ink and 0x00FFFFFF) or (TRANSLATE_NOTE_FILL shl 24))
+        if (translateNote.background !== translateNoteBg) translateNote.background = translateNoteBg
+    }
+
     companion object {
+        const val REVEAL_OPEN_MS = 460L
+        const val REVEAL_CLOSE_MS = 360L
+        const val TRANSLATION_STAGGER_MS = 60L
+        const val TRANSLATING_PULSE_MS = 700L
+        const val TRANSLATING_MIN_ALPHA = 0.4f
+        const val TRANSLATE_TOP_DP = 6f
+        const val TRANSLATE_NOTE_SHIFT_DP = 6f
+        const val TRANSLATE_ON_FILL = 0x2E
+        const val TRANSLATE_NOTE_FILL = 0x24
         const val OPEN_MS = 560L
         const val CLOSE_MS = 460L
         const val CROSSFADE_MS = 700L

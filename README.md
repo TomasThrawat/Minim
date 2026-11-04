@@ -10,6 +10,7 @@ It runs on Android 9 (API 28) and newer, and the app is about 8.9 MB.
 - **Light and dark:** both themes, in Dynamic and Default.
 - **Rotating greetings:** Home greets you with a new line every 7 seconds, including ones about what you're playing, your recent songs, your liked songs and how much you've listened. Apart from the time-of-day greetings, they all come from [`greetings/greetings.json`](greetings/greetings.json) in this repo, so new lines arrive without an update.
 - **Synced lyrics:** time-synced lyrics from LRCLib, with a timing adjustment in Settings. Tap the lyric line on Now Playing for full screen lyrics over a blurred cover, lit up word by word (Flow) or line by line (Lyrics style in Settings). In full screen lyrics, tap any line to jump the song there.
+- **Lyrics translation (5.6.0):** in full screen lyrics, a translate button in the top right shows the English meaning under every line, for songs that aren't in English (Hindi, Hinglish, Spanish, Korean and so on). Gaps shimmer while it says "Translating", then the English fades in under each line in smaller text, with the playing line kept in the middle. Each song is translated once by Gemini and saved on your phone (up to 400 songs), so repeats are instant, even after a restart. It uses the same Gemini setup as the chat, and if it fails, a note lets you tap to retry.
 - **Smooth motion:** colours fade between songs, tabs slide, lists slide in, Up next glides, covers fade in, pills respond to presses and Stats numbers count up. Turn it all off with Remove animations in Settings.
 - **Discover:** shelves of songs picked from what you listen to, plus a radio queue that keeps playing similar songs.
 - **Artist pages:** a full-bleed artist photo, monthly listeners, top songs, albums and a shuffle button. Open one from search or by tapping the artist on Now Playing.
@@ -35,6 +36,8 @@ It runs on Android 9 (API 28) and newer, and the app is about 8.9 MB.
 Signing in is optional. Minim only gets your name, profile picture and email. It never sees your password and can't access your Gmail, Drive, contacts or anything else in your Google account. Sync stores only song IDs, song details (title, artist, cover link, length) and times under your own account, and **Delete account** in Settings removes all of it.
 
 **Gemini chat:** chat messages go to Google Gemini; on the free tier Google may use them to improve its models. Only what you type, the song you attach and what Gemini asks Minim for (song details, lyrics, your likes, recent songs and listening stats) are sent. The chat isn't saved and is wiped when you close the app. Your own API key, if you add one, is encrypted on your phone, left out of Android backups, and never synced or logged.
+
+**Lyrics translation:** when you tap translate, the song's lyrics, title and artist go to Google Gemini, and nothing else. The translation is saved only on your phone.
 
 ## Download
 

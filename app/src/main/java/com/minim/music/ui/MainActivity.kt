@@ -3378,6 +3378,17 @@ class MainActivity : AppCompatActivity() {
             override fun seek(fraction: Float, finished: Boolean) = seekFromBar(fraction, finished, fsLyrics.bar)
             override fun seekToLyric(lineStartMs: Long) = seekToLyricLine(lineStartMs)
             override fun onChromeChanged() = applyFsLyricsChrome()
+            override suspend fun savedTranslation(data: LyricsData): List<String?>? =
+                app.lyricsTranslator.cached(data.trackId, data.lines.map { it.text.trim() })
+            override suspend fun translateLyrics(data: LyricsData): List<String?> {
+                val track = app.playbackController.uiState.value.currentTrack?.takeIf { it.id == data.trackId }
+                val ctx = applicationContext
+                val settings = app.geminiSettings
+                return app.lyricsTranslator.translate(
+                    data.trackId, data.lines.map { it.text.trim() }, track?.title, track?.artist
+                ) { GeminiRoute.endpoint(ctx, settings) }
+            }
+            override fun tapHaptic(v: View) = haptic(v, HapticFeedbackConstants.CLOCK_TICK)
         })
         fsLyrics.flowStyle = app.preferences.isFlowLyrics
         npLyric.flowStyle = app.preferences.isFlowLyrics

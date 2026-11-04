@@ -195,6 +195,20 @@ class MinimApp : Application() {
         com.minim.music.data.ai.GeminiSettings(this)
     }
 
+    /**
+     * 5.6.0: Full Screen Lyrics translation. Same Gemini route and model as the chat; saved
+     * translations live in the no-backup folder, so they stay on this phone only.
+     */
+    val lyricsTranslator: com.minim.music.data.ai.LyricsTranslator by lazy {
+        com.minim.music.data.ai.LyricsTranslator(
+            client = com.minim.music.data.ai.GeminiClient(okHttpClient),
+            cache = com.minim.music.data.ai.TranslationCache(File(noBackupFilesDir, "lyric_translations")),
+            scope = kotlinx.coroutines.CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+            ),
+        )
+    }
+
     private val geminiMain by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     @Volatile private var geminiChatMade = false
 

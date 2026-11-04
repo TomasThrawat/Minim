@@ -40,6 +40,8 @@ class FullscreenLyricsLayout @JvmOverloads constructor(
     var onSingleTap: ((MotionEvent) -> Unit)? = null
     var tapBlocked: (() -> Boolean)? = null
     var excludeView: View? = null
+    /** 5.6.0: more controls that taps on must not count as a line tap or half a double tap (the translate button). */
+    var moreExcluded: List<View> = emptyList()
 
     private var tracking = false
     private var blockedTap = false
@@ -71,9 +73,11 @@ class FullscreenLyricsLayout @JvmOverloads constructor(
         return super.dispatchTouchEvent(ev)
     }
 
-    private fun isOnExcluded(ev: MotionEvent): Boolean {
-        val v = excludeView ?: return false
-        if (v.visibility != View.VISIBLE) return false
+    private fun isOnExcluded(ev: MotionEvent): Boolean =
+        isOn(excludeView, ev) || moreExcluded.any { isOn(it, ev) }
+
+    private fun isOn(v: View?, ev: MotionEvent): Boolean {
+        if (v == null || v.visibility != View.VISIBLE) return false
         val slop = 12f * resources.displayMetrics.density
         val l = v.left + v.translationX
         val t = v.top + v.translationY
@@ -202,10 +206,33 @@ open class LyricLineView(context: Context) : AppCompatTextView(context) {
  * the rest dimmed by distance. Untimed lyrics: every line the same, nothing highlighted.
  */
 class FullscreenLyricsAdapter(
-    private val typeface: Typeface?
+    private val typeface: Typeface?,
+    translationTypeface: Typeface? = null,
 ) : RecyclerView.Adapter<FullscreenLyricsAdapter.Holder>() {
 
-    class Holder(val line: LyricLineView) : RecyclerView.ViewHolder(line)
+    /** 5.6.0: the row holds the line and its translation; [line] is still the line itself. */
+    class Holder(val row: LyricRow) : RecyclerView.ViewHolder(row) {
+        val line: LyricLineView get() = row.line
+    }
+
+    /** 5.6.0: translations under the lines: off, shimmer bars while Gemini works, or ready. */
+    enum class TransMode { OFF, LOADING, READY }
+
+    var transMode: TransMode = TransMode.OFF
+        private set
+    /** How far the space for translations is open, 0 to 1 (the same for every row). */
+    var reveal: Float = 0f
+    /** Lines that get a shimmer bar while loading (the ones that look non-English). */
+    private var shimmerLines: BooleanArray = BooleanArray(0)
+    private var translations: List<String?> = emptyList()
+    /** Ready came after a shimmer: the bars fade into the text. Straight from the phone's copy: no bars. */
+    private var fromShimmer = false
+    /** Per row, when its fade-in starts (ms after [setReady]); null = no fade, everything shown. */
+    private var fadeDelays: LongArray? = null
+    /** Time since [setReady], driving the top to bottom fade-in. */
+    var fadeElapsedMs: Long = Long.MAX_VALUE
+
+    private val translationFont: Typeface? = translationTypeface
 
     /** 5.1.0: TalkBack's "play from this line" on a synced line (a finger tap comes in through the root). */
     var onLineAction: ((Int) -> Unit)? = null
@@ -232,6 +259,12 @@ class FullscreenLyricsAdapter(
         this.synced = synced
         active = -1
         flowDurations = if (synced) FlowTiming.lineDurations(lines) else LongArray(lines.size)
+        transMode = TransMode.OFF
+        reveal = 0f
+        shimmerLines = BooleanArray(lines.size)
+        translations = emptyList()
+        fadeDelays = null
+        fadeElapsedMs = Long.MAX_VALUE
         notifyDataSetChanged()
     }
 
@@ -254,17 +287,22 @@ class FullscreenLyricsAdapter(
             val pad = (LINE_PAD_DP * dm.density).toInt()
             setPadding(0, pad, 0, pad)
         }
-        return Holder(v)
+        val t = TranslationLineView(parent.context, translationFont)
+        val row = LyricRow(parent.context, v, t).apply {
+            layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        return Holder(row)
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val l = lines[position]
         val end = if (synced) l.startMs + flowDurations[position] else l.endMs
         holder.line.bindLine(l.text.trim(), l.startMs, end, l)
+        bindTranslation(holder, position)
         style(holder.line, position, animate = false)
         if (synced && onLineAction != null) {
             androidx.core.view.ViewCompat.replaceAccessibilityAction(
-                holder.line,
+                holder.row,
                 androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
                 lineActionLabel
             ) { v, _ ->
@@ -275,7 +313,7 @@ class FullscreenLyricsAdapter(
             }
         } else {
             androidx.core.view.ViewCompat.removeAccessibilityAction(
-                holder.line,
+                holder.row,
                 androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK.id
             )
         }
@@ -284,7 +322,74 @@ class FullscreenLyricsAdapter(
     /** A view coming back from RecyclerView's cache isn't re-bound: bring its look up to date. */
     override fun onViewAttachedToWindow(holder: Holder) {
         val pos = holder.bindingAdapterPosition
-        if (pos != RecyclerView.NO_POSITION) style(holder.line, pos, animate = false)
+        if (pos != RecyclerView.NO_POSITION) {
+            bindTranslation(holder, pos)
+            style(holder.line, pos, animate = false)
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // 5.6.0: translations
+    // ------------------------------------------------------------------------------------------
+
+    /** Gemini is working: a shimmer bar under each line in [needs]. */
+    fun setLoading(needs: BooleanArray) {
+        transMode = TransMode.LOADING
+        shimmerLines = needs.copyOf(lines.size)
+        translations = emptyList()
+        fromShimmer = true
+        fadeDelays = null
+        fadeElapsedMs = Long.MAX_VALUE
+    }
+
+    /**
+     * The translations (one per line, null for none). [delays] staggers each row's fade-in (ms
+     * after now); null shows them straight away.
+     */
+    fun setReady(result: List<String?>, delays: LongArray?) {
+        fromShimmer = transMode == TransMode.LOADING
+        transMode = TransMode.READY
+        translations = result
+        fadeDelays = delays
+        fadeElapsedMs = if (delays == null) Long.MAX_VALUE else 0L
+    }
+
+    fun setTranslationsOff() {
+        transMode = TransMode.OFF
+        translations = emptyList()
+        fromShimmer = false
+        fadeDelays = null
+        fadeElapsedMs = Long.MAX_VALUE
+    }
+
+    fun translationAt(position: Int): String? = translations.getOrNull(position)
+
+    /** How far row [position] has faded from its bar to its text, 0 to 1. */
+    fun fadeFor(position: Int): Float {
+        val delays = fadeDelays ?: return 1f
+        val d = delays.getOrElse(position) { delays.lastOrNull() ?: 0L }
+        val t = ((fadeElapsedMs - d).toFloat() / TRANSLATION_FADE_MS).coerceIn(0f, 1f)
+        return ease.getInterpolation(t)
+    }
+
+    /** Brings row [position]'s translation up to date (text, bar, fade, open space, colour). */
+    fun bindTranslation(holder: Holder, position: Int) {
+        val t = holder.row.translation
+        t.ink = ink
+        t.barShare = TranslationLineView.barShareFor(position, lines.getOrNull(position)?.text?.length ?: 0)
+        when (transMode) {
+            TransMode.OFF -> t.bind(null, shimmer = false, fade = 1f, reveal = 0f)
+            TransMode.LOADING -> t.bind(null, shimmer = shimmerLines.getOrElse(position) { false }, fade = 0f, reveal = reveal)
+            TransMode.READY -> t.bind(
+                translations.getOrNull(position),
+                shimmer = fromShimmer && shimmerLines.getOrElse(position) { false },
+                fade = fadeFor(position),
+                reveal = reveal
+            )
+        }
+        t.contentDescription = if (transMode == TransMode.READY) translations.getOrNull(position) else null
+        t.importantForAccessibility =
+            if (t.contentDescription != null) View.IMPORTANT_FOR_ACCESSIBILITY_YES else View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
     fun style(v: LyricLineView, position: Int, animate: Boolean) {
@@ -294,13 +399,24 @@ class FullscreenLyricsAdapter(
         v.setTextColor(ink)
         v.flowOn = flow && synced
         v.setActiveLine(synced && d == 0)
+        // 5.6.0: the row scales (so a translation shrinks with its line); line and translation
+        // share the line's brightness
+        val row = v.parent as? LyricRow
+        val scaled: View = row ?: v
+        val t = row?.translation
         v.animate().cancel()
+        if (row != null) row.animate().cancel()
+        t?.animate()?.cancel()
+        t?.ink = ink
         if (animate) {
-            v.animate().alpha(a).scaleX(s).scaleY(s).setDuration(STYLE_MS).setInterpolator(ease).start()
+            v.animate().alpha(a).setDuration(STYLE_MS).setInterpolator(ease).start()
+            scaled.animate().scaleX(s).scaleY(s).setDuration(STYLE_MS).setInterpolator(ease).start()
+            t?.animate()?.alpha(a)?.setDuration(STYLE_MS)?.setInterpolator(ease)?.start()
         } else {
             v.alpha = a
-            v.scaleX = s
-            v.scaleY = s
+            scaled.scaleX = s
+            scaled.scaleY = s
+            t?.alpha = a
         }
     }
 
@@ -309,5 +425,7 @@ class FullscreenLyricsAdapter(
         const val TEXT_SP = 27f
         const val LINE_PAD_DP = 11f
         const val STYLE_MS = 420L
+        /** 5.6.0: one row's bar-to-text fade. */
+        const val TRANSLATION_FADE_MS = 380L
     }
 }

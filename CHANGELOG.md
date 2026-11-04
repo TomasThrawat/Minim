@@ -2,6 +2,15 @@
 
 Every Minim release, newest first. Download any of them from the [Releases](https://github.com/UniquelyGaurab/minim/releases) page.
 
+## 5.6.0 (2026-11-05)
+
+- **Lyrics translation:** in Full Screen Lyrics, tap the new translate button in the top right to get the English meaning under every line. It only shows up for songs that aren't in English, like Hindi, Hinglish, Spanish or Korean
+- **Smooth reveal:** gaps open under the lines and shimmer while it says "Translating", then the English fades in from top to bottom in smaller, dimmer text. The line that's playing stays in the middle
+- **Instant repeats:** each song is translated once and saved on your phone, so playing it again shows the translation straight away, even after a restart. Translation stays on for the next songs until you tap it off
+- **Same Gemini setup as the chat:** it uses your own AI Studio key if you've added one in Settings, otherwise the built-in one. If Gemini fails or takes too long, a note says "Couldn't translate, tap to retry"
+
+The lyrics, song title and artist are sent to Google Gemini to translate them. Nothing else is sent.
+
 ## 5.5.2 (2026-10-30)
 
 - **Festival themes:** during a festival, Home gets a full-screen wallpaper, colours taken from it, the festival's own greetings and a festive like burst. First up is **Diwali, 1 to 10 November**, with gold and orange sparks when you like a song

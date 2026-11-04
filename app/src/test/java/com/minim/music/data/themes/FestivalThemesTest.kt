@@ -233,24 +233,24 @@ class FestivalThemesTest {
         assertTrue(File(repo, diwali.wallpaper!!).exists())
         val set = ThemeGreetingsParser.parse(File(repo, diwali.greetingsPath!!).readText())!!
         assertEquals(0, set.skipped)
-        assertEquals(25, set.file.anytime.size)
-        assertEquals(15, set.file.stats.size)
-        assertEquals(10, set.file.occasions.size)
+        assertEquals(76, set.file.anytime.size)
+        assertEquals(40, set.file.stats.size)
+        assertEquals(12, set.file.occasions.size)
         assertEquals(listOf(d("2026-11-08")), set.specialDays)
-        assertEquals(7, set.topArtist.size)
-        assertEquals("Anirudh is today's" to "brightest diya.", set.takeoverLine(0, "Anirudh"))
-        // The first Diwali time line: 5 to 9am, as the user wrote it
+        assertEquals(12, set.topArtist.size)
+        assertEquals("Anirudh today." to "Brighter than every diya on the street.", set.takeoverLine(0, "Anirudh"))
+        // The first Diwali time line: 5 to 6am (both hours count)
         val g = set.file.anytime[0]
         val at = { h: Int -> Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 2, h, 30) } }
         assertNotNull(g.render("", GreetingFacts().toData(at(5)), at(5)))
-        assertNotNull(g.render("", GreetingFacts().toData(at(8)), at(8)))
-        assertNull(g.render("", GreetingFacts().toData(at(9)), at(9)))
+        assertNotNull(g.render("", GreetingFacts().toData(at(6)), at(6)))
+        assertNull(g.render("", GreetingFacts().toData(at(7)), at(7)))
         // A roast line (no hours) shows at any hour; it needs the saved name only when it uses it
-        val roast = set.file.anytime[11]
+        val roast = set.file.anytime[32]
         assertNotNull(roast.render("", GreetingFacts().toData(at(3)), at(3)))
         assertNotNull(roast.render("", GreetingFacts().toData(at(15)), at(15)))
-        // 10pm to 1am wraps past midnight
-        val late = set.file.anytime[8]
+        // 11pm to 1am wraps past midnight
+        val late = set.file.anytime[13]
         assertNotNull(late.render("", GreetingFacts().toData(at(0)), at(0)))
         assertNull(late.render("", GreetingFacts().toData(at(1)), at(1)))
     }
