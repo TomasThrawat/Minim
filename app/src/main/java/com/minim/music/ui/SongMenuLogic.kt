@@ -19,7 +19,9 @@ object SongMenuLogic {
 
     /** Link for Share: a YouTube Music link when the id is a video id, else the stored source link. */
     fun shareUrl(id: String, sourceUrl: String): String =
-        if (VIDEO_ID.matches(id)) "https://music.youtube.com/watch?v=$id"
+        // 5.7.0 u44: a stories upload is a video, so it shares as a YouTube link
+        if (sourceUrl.contains(com.minim.music.data.stories.StoryTracks.MARK) && VIDEO_ID.matches(id)) "https://www.youtube.com/watch?v=$id"
+        else if (VIDEO_ID.matches(id)) "https://music.youtube.com/watch?v=$id"
         else sourceUrl.ifBlank { "https://music.youtube.com/watch?v=$id" }
 
     /** Text for Share: title · artist, then the link. */

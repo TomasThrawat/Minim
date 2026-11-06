@@ -58,6 +58,85 @@
             android:padding="8dp"
             android:src="@drawable/ic_more_vert"
             android:tag="tint:fg" />
+
+        <!-- 5.7.0 u46: stories uploads only: opens their captions (Full Screen Lyrics). Songs never
+             show it, so their top row is unchanged. -->
+        <ImageView
+            android:id="@+id/np_cc"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/np_captions"
+            android:padding="8dp"
+            android:src="@drawable/ic_closed_caption"
+            android:tag="tint:fg"
+            android:visibility="gone" />
+
+        <!-- 5.7.0 u47: tapes only: save the tape offline (the heart below likes it), so tapes
+             show up under Liked and Offline's Tapes filter -->
+        <FrameLayout
+            android:id="@+id/np_download"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="80dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/np_download"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/np_download_icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:padding="9dp"
+                android:src="@drawable/ic_offline"
+                android:tag="tint:fg" />
+
+            <com.minim.music.ui.ProgressRing
+                android:id="@+id/np_download_ring"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- 5.7.0 u47: the sleep timer's live countdown, top left, on the same line as the
+             collapse pill and the menu. Tap it to change or stop the timer. -->
+        <LinearLayout
+            android:id="@+id/np_sleep"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_gravity="start|center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="6dp"
+            android:paddingEnd="8dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/np_sleep_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_bedtime"
+                android:tag="tint:fg" />
+
+            <TextView
+                android:id="@+id/np_sleep_text"
+                style="@style/MinimText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:fontFeatureSettings="tnum"
+                android:includeFontPadding="false"
+                android:tag="text:fg"
+                android:textSize="13sp" />
+        </LinearLayout>
     </FrameLayout>
 
     <Space

@@ -128,6 +128,15 @@ object ArtworkUrls {
      * a 4:3 file (hqdefault, sddefault) has black bars above and below it, so the square is cut from the
      * 16:9 band in the middle. Other images: the largest centred square.
      */
+    /** 5.7.0 u46: the 16:9 band of a video frame (a 4:3 file's black bars cut off), full width. */
+    data class Band(val top: Int, val height: Int)
+
+    fun wideCrop(width: Int, height: Int): Band {
+        if (width <= 0 || height <= 0) return Band(0, 0)
+        val h = minOf(height, (width * 9f / 16f).roundToInt()).coerceAtLeast(1)
+        return Band((height - h) / 2, h)
+    }
+
     fun squareCrop(width: Int, height: Int, videoFrame: Boolean): Square {
         if (width <= 0 || height <= 0) return Square(0, 0, 0)
         val pictureHeight = if (videoFrame) minOf(height, (width * 9f / 16f).roundToInt()) else height

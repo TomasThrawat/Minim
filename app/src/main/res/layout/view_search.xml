@@ -65,14 +65,86 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <androidx.recyclerview.widget.RecyclerView
+        <!-- 5.7.0: Discover's shelves (top artists, the Gemini shelf, the mixes) fill Search while
+             the box is empty. Typing hides them and shows results; clearing the box brings them back. -->
+        <FrameLayout
+            android:id="@+id/search_discover"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/discover_refresh"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <com.minim.music.ui.FadingRecyclerView
+                    android:id="@+id/discover_shelves"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingTop="24dp"
+                    android:paddingBottom="120dp" />
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+            <!-- v4.7: not enough listening yet. A big headline like the welcome screens. -->
+            <LinearLayout
+                android:id="@+id/discover_welcome"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="36dp"
+                android:paddingTop="56dp"
+                android:paddingEnd="36dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/discover_welcome_title"
+                    style="@style/MinimText.Bold"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:lineSpacingMultiplier="0.86"
+                    android:tag="text:fg"
+                    android:text="@string/discover_welcome_title"
+                    android:textSize="38sp" />
+
+                <TextView
+                    android:id="@+id/discover_welcome_sub"
+                    style="@style/MinimText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:layout_marginEnd="24dp"
+                    android:lineSpacingMultiplier="1.1"
+                    android:tag="text:muted"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/discover_message"
+                style="@style/MinimText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginStart="48dp"
+                android:layout_marginEnd="48dp"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:padding="12dp"
+                android:tag="text:muted"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <com.minim.music.ui.FadingRecyclerView
             android:id="@+id/search_results"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:overScrollMode="never"
             android:paddingTop="30dp"
-            android:paddingBottom="120dp" />
+            android:paddingBottom="120dp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/search_status"

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Job
 import android.os.SystemClock
@@ -84,11 +85,14 @@ class PlaybackController(
     private inner class PlayerListener : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             updateStateFromController(clearError = playbackState == Player.STATE_READY)
+            // 5.7.0 u46: the last upload of the queue played to the end
+            if (playbackState == Player.STATE_ENDED) saveStoryProgress(ended = true)
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateStateFromController(clearError = isPlaying)
             syncListenTicker()
+            syncStoryTicker()
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -96,6 +100,9 @@ class PlaybackController(
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // 5.7.0 u46: the upload you leave keeps its place (finished when it moved on by itself)
+            onStoryTransition(mediaItem, reason)
+            applyTapeSpeed(mediaItem)
             updateStateFromController(clearError = true)
             resetListen(mediaItem?.mediaId)
             maybeTopUpRadio()
@@ -145,6 +152,13 @@ class PlaybackController(
         lyricsTrackId = track.id
         _lyricsState.value = null
         lyricsJob?.cancel()
+        _captionChoice.value = null
+        if (com.minim.music.data.stories.StoryTracks.isStory(track)) {
+            // 5.7.0 u44: stories uploads aren't songs, so no lyrics lookup (it would only find wrong ones).
+            // 5.7.0 u46: their YouTube captions show instead.
+            lyricsJob = scope.launch { loadCaptions(track.id, null) }
+            return
+        }
         lyricsJob = scope.launch {
             val lyrics = try {
                 lyricsProvider.getLyrics(track)
@@ -166,6 +180,186 @@ class PlaybackController(
         }
     }
 
+    // ---- 5.7.0 u46: captions for stories uploads -------------------------------------------------
+
+    /** The caption tracks an upload has, and which one is showing (the switch pill). */
+    data class CaptionChoice(
+        val trackId: String,
+        val options: List<com.minim.music.data.captions.CaptionTrack>,
+        val selected: Int
+    )
+
+    private val _captionChoice = MutableStateFlow<CaptionChoice?>(null)
+    /** Set while an upload with more than one usable caption track is playing. */
+    val captionChoice: StateFlow<CaptionChoice?> = _captionChoice.asStateFlow()
+
+    /** Joined caption lines by video + language + kind, so switching back is instant. */
+    private val captionLines = object : LinkedHashMap<String, List<com.minim.music.data.captions.Cue>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<com.minim.music.data.captions.Cue>>?) = size > 24
+    }
+
+    /**
+     * Loads [videoId]'s captions into the lyrics slot. [pick] is a track the user chose with the
+     * pill; null takes the best one (the channel's own first, the original language first), and
+     * moves down the list when one can't be read.
+     */
+    private suspend fun loadCaptions(videoId: String, pick: Int?) {
+        val C = com.minim.music.data.captions.CaptionLyrics
+        val list = sourceAdapter.fetchCaptionTracks(videoId)
+        if (lyricsTrackId != videoId) return
+        val options = com.minim.music.data.captions.CaptionPicker.choices(list?.tracks.orEmpty(), list?.videoLanguage)
+        if (options.isEmpty()) {
+            _captionChoice.value = null
+            _lyricsState.value = C.none(videoId)
+            return
+        }
+        val order = if (pick != null) listOf(pick) else options.indices.toList()
+        for (i in order) {
+            val t = options.getOrNull(i) ?: continue
+            val lines = captionLinesFor(videoId, t)
+            if (lyricsTrackId != videoId) return
+            if (lines.isNotEmpty() || pick != null) {
+                _captionChoice.value = CaptionChoice(videoId, options, i)
+                _lyricsState.value = C.of(videoId, lines)
+                return
+            }
+        }
+        _captionChoice.value = null
+        _lyricsState.value = C.none(videoId)
+    }
+
+    private suspend fun captionLinesFor(videoId: String, t: com.minim.music.data.captions.CaptionTrack): List<com.minim.music.data.captions.Cue> {
+        val key = "$videoId|${t.languageTag}|${t.auto}"
+        captionLines[key]?.let { return it }
+        for (url in com.minim.music.data.captions.CaptionPicker.urlsInOrder(t)) {
+            val body = sourceAdapter.fetchCaptionText(url) ?: continue
+            val cues = withContext(Dispatchers.Default) {
+                com.minim.music.data.captions.CaptionJoiner.join(com.minim.music.data.captions.CaptionParser.parse(body), t.auto)
+            }
+            if (cues.isNotEmpty()) {
+                captionLines[key] = cues
+                return cues
+            }
+        }
+        return emptyList()
+    }
+
+    /** The caption pill: shows the next of the upload's caption tracks. */
+    fun nextCaptionTrack() {
+        val ch = _captionChoice.value ?: return
+        if (ch.options.size < 2 || lyricsTrackId != ch.trackId) return
+        val next = (ch.selected + 1) % ch.options.size
+        _captionChoice.value = ch.copy(selected = next)
+        lyricsJob?.cancel()
+        lyricsJob = scope.launch { loadCaptions(ch.trackId, next) }
+    }
+
+    // ---- 5.7.0 u46: where you got to in each stories upload ---------------------------------------
+
+    private val storyProgress get() = com.minim.music.MinimApp.instance.storyProgress
+    private val _storiesVersion = MutableStateFlow(0)
+    /** Goes up when an upload becomes half-finished or heard, so the stories tab redraws. */
+    val storiesVersion: StateFlow<Int> = _storiesVersion.asStateFlow()
+    private var storyTicker: Job? = null
+    /** The upload being followed, and where it was at the last tick (read after it changed). */
+    private var storyTrackedId: String? = null
+    private var storyLastPos = 0L
+    private var storyLastDur = 0L
+    private var storyLastSaveRt = 0L
+
+    // ---- 5.7.0 u47: tapes keep a speed per channel; songs always play at 1x ----------------------
+
+    private val tapeSpeeds by lazy { com.minim.music.data.stories.TapeSpeedStore(context) }
+
+    /** The speed the player is at now (1x while nothing is connected). */
+    val playbackSpeed: Float get() = mediaController?.playbackParameters?.speed ?: 1f
+
+    private fun applyTapeSpeed(item: MediaItem?) {
+        val c = mediaController ?: return
+        val want = tapeSpeeds.speedFor(item?.let { Track.fromMediaItem(it) })
+        if (c.playbackParameters.speed != want) c.setPlaybackSpeed(want)
+    }
+
+    /** Sets the playing tape's speed and remembers it for its channel. Songs stay at 1x. */
+    fun setTapeSpeed(speed: Float) {
+        val c = mediaController ?: return
+        val item = c.currentMediaItem ?: return
+        val track = Track.fromMediaItem(item)
+        if (!com.minim.music.data.stories.StoryTracks.isStory(track)) return
+        tapeSpeeds.set(track.artist, speed)
+        applyTapeSpeed(item)
+    }
+
+    private fun isStoryItem(item: MediaItem?): Boolean =
+        item != null && com.minim.music.data.stories.StoryTracks.isStory(Track.fromMediaItem(item))
+
+    /** Saves the playing upload's position (no-op for songs). */
+    private fun saveStoryProgress(ended: Boolean) {
+        val c = mediaController ?: return
+        val item = c.currentMediaItem
+        if (!isStoryItem(item)) return
+        val id = item!!.mediaId
+        val dur = c.duration.takeIf { it > 0 } ?: 0L
+        val pos = if (ended && dur > 0) dur else c.currentPosition
+        storyTrackedId = id
+        storyLastPos = pos
+        storyLastDur = dur
+        recordStory(id, pos, dur, ended)
+    }
+
+    private fun recordStory(id: String, pos: Long, dur: Long, ended: Boolean) {
+        storyLastSaveRt = SystemClock.elapsedRealtime()
+        if (storyProgress.record(id, pos, dur, ended, System.currentTimeMillis())) _storiesVersion.value++
+    }
+
+    private fun onStoryTransition(mediaItem: MediaItem?, reason: Int) {
+        val prev = storyTrackedId
+        if (prev != null && storyLastPos > 0L) {
+            val moved = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+            recordStory(prev, if (moved && storyLastDur > 0) storyLastDur else storyLastPos, storyLastDur, moved)
+        }
+        storyTrackedId = null
+        storyLastPos = 0L
+        storyLastDur = 0L
+        if (!isStoryItem(mediaItem)) return
+        val c = mediaController ?: return
+        val resume = com.minim.music.data.stories.StoryProgress.resumeMs(storyProgress.get(mediaItem!!.mediaId))
+        // Skipping to it (or the queue moving on) starts at 0: carry on where you stopped instead
+        if (resume > 0L && c.currentPosition < 1_500L && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+            c.seekTo(resume)
+        }
+        storyTrackedId = mediaItem.mediaId
+    }
+
+    /** While an upload plays, its position is noted every second and saved every 5 seconds. */
+    private fun syncStoryTicker() {
+        val c = mediaController
+        if (c == null || !c.isPlaying) {
+            storyTicker?.cancel()
+            storyTicker = null
+            saveStoryProgress(ended = false)
+            return
+        }
+        if (storyTicker?.isActive == true) return
+        storyTicker = scope.launch {
+            while (isActive) {
+                val mc = mediaController ?: break
+                if (!mc.isPlaying) break
+                val item = mc.currentMediaItem
+                if (isStoryItem(item)) {
+                    val id = item!!.mediaId
+                    if (storyTrackedId != id) storyTrackedId = id
+                    storyLastPos = mc.currentPosition
+                    storyLastDur = mc.duration.takeIf { it > 0 } ?: storyLastDur
+                    if (SystemClock.elapsedRealtime() - storyLastSaveRt >= 5_000L) {
+                        recordStory(id, storyLastPos, storyLastDur, false)
+                    }
+                }
+                delay(1000L)
+            }
+        }
+    }
+
     private fun setupPlayerState(controller: MediaController) {
         // Shuffle is no longer offered, so make sure an old "on" state can't linger.
         if (controller.shuffleModeEnabled) controller.shuffleModeEnabled = false
@@ -176,6 +370,7 @@ class PlaybackController(
                 val items = savedQueue.map { it.toMediaItem() }
                 controller.setMediaItems(items, savedIndex, savedPos)
                 controller.prepare()
+                applyTapeSpeed(controller.currentMediaItem)
                 val initialTrack = savedQueue[savedIndex]
                 fetchLyricsForTrack(initialTrack)
                 scope.launch {
@@ -273,15 +468,21 @@ class PlaybackController(
         val effectiveQueue = if (queueList.isEmpty()) listOf(track) else queueList
         val index = effectiveQueue.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
         val items = effectiveQueue.map { it.toMediaItem() }
+        // 5.7.0 u46: an upload you'd started carries on where you stopped
+        val startMs = if (com.minim.music.data.stories.StoryTracks.isStory(effectiveQueue[index]))
+            com.minim.music.data.stories.StoryProgress.resumeMs(storyProgress.get(effectiveQueue[index].id)) else 0L
+        saveStoryProgress(ended = false)
+        storyTrackedId = null
 
         _uiState.value = _uiState.value.copy(errorMessage = null, isBuffering = true)
-        c.setMediaItems(items, index, 0L)
+        c.setMediaItems(items, index, startMs)
         c.prepare()
         c.play()
 
         fetchLyricsForTrack(track)
         scope.launch {
-            database.recordPlayback(track)
+            // 5.7.0 u44: stories uploads stay out of your song history, stats and Discover
+            if (!com.minim.music.data.stories.StoryTracks.isStory(track)) database.recordPlayback(track)
             val accent = resolveActiveAccent(track.thumbnailUrl)
             if (_uiState.value.currentTrack?.id == track.id) {
                 _uiState.value = _uiState.value.copy(accentColor = accent)
@@ -416,6 +617,8 @@ class PlaybackController(
         val step = (nowRt - since).coerceIn(0L, MAX_CREDIT_STEP_MS)
         if (step <= 0L) return
         val track = listenTrack ?: return
+        // 5.7.0 u44: listening to a stories upload isn't song listening (no time, no counted play)
+        if (com.minim.music.data.stories.StoryTracks.isStory(track)) return
         listenedMs += step
         val endWall = System.currentTimeMillis()
         for (slice in com.minim.music.data.stats.ListenSplit.split(endWall - step, endWall)) {

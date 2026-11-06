@@ -19,7 +19,7 @@ import okhttp3.OkHttpClient
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-class MinimApp : Application() {
+open class MinimApp : Application() {
 
     lateinit var okHttpClient: OkHttpClient
         private set
@@ -83,6 +83,21 @@ class MinimApp : Application() {
     }
 
     /** v5.0: the optional Google account (Firebase Auth). Created on first use, never throws. */
+    /** 5.7.0 u46: how far you got into each stories upload (resume, Continue listening, dimming). */
+    val storyProgress: com.minim.music.data.stories.StoryProgressStore by lazy {
+        com.minim.music.data.stories.StoryProgressStore(this)
+    }
+
+    /** 5.7.0 u47: followed channels and saved uploads, shared by tapes and Channel pages. */
+    val storiesStore: com.minim.music.data.stories.StoriesStore by lazy {
+        com.minim.music.data.stories.StoriesStore(this)
+    }
+
+    /** 5.7.0 u48: liked artists (the Artist page heart, Liked > Artists, a future Artist tab). */
+    val likedArtists: com.minim.music.data.artists.LikedArtistsStore by lazy {
+        com.minim.music.data.artists.LikedArtistsStore(this)
+    }
+
     val account: com.minim.music.data.account.MinimAccount by lazy {
         com.minim.music.data.account.MinimAccount(this)
     }
@@ -203,6 +218,17 @@ class MinimApp : Application() {
         com.minim.music.data.ai.LyricsTranslator(
             client = com.minim.music.data.ai.GeminiClient(okHttpClient),
             cache = com.minim.music.data.ai.TranslationCache(File(noBackupFilesDir, "lyric_translations")),
+            scope = kotlinx.coroutines.CoroutineScope(
+                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+            ),
+        )
+    }
+
+    /** 5.7.0: the Gemini shelf on the Search page, made at most once a day. */
+    val geminiShelfMaker: com.minim.music.data.ai.GeminiShelfMaker by lazy {
+        com.minim.music.data.ai.GeminiShelfMaker(
+            client = com.minim.music.data.ai.GeminiClient(okHttpClient),
+            file = File(noBackupFilesDir, "gemini_shelf.json"),
             scope = kotlinx.coroutines.CoroutineScope(
                 kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
             ),
@@ -393,7 +419,8 @@ class MinimApp : Application() {
             store = store,
             options = { id, fresh -> sourceAdapter.audioOptionsBlocking(id, fresh) },
             fetcher = com.minim.music.data.offline.ParallelFetcher(saveClient),
-            lyrics = { track -> (lyricsProvider as? LrcLibLyricsAdapter)?.fetchRaw(track) },
+            // 5.7.0 u47: a saved tape keeps no lyrics (its captions load from YouTube when online)
+            lyrics = { track -> if (com.minim.music.data.stories.StoryTracks.isStory(track)) null else (lyricsProvider as? LrcLibLyricsAdapter)?.fetchRaw(track) },
             art = { url -> artworkPipeline.fileForSaving(url) }
         )
         offline = com.minim.music.data.offline.OfflineManager(

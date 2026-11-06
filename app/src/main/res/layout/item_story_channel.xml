@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5.7.0 u44: one added channel in the stories row. A round photo (first letter until it loads)
+     and the name. u47: tap opens its Channel page, long-press offers to remove it. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="76dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:layout_width="60dp"
+        android:layout_height="60dp">
+
+        <TextView
+            android:id="@+id/channel_letter"
+            style="@style/MinimText.Bold"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shape_circle"
+            android:gravity="center"
+            android:importantForAccessibility="no"
+            android:tag="fill:soft text:fg"
+            android:textSize="22sp" />
+
+        <ImageView
+            android:id="@+id/channel_photo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shape_circle"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+
+        <!-- 5.7.0 u47: a dot when the channel has an upload from the last week you haven't played -->
+        <View
+            android:id="@+id/channel_dot"
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:layout_gravity="top|end"
+            android:importantForAccessibility="no"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/channel_name"
+        style="@style/MinimText.Semi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:singleLine="true"
+        android:tag="text:fg"
+        android:textSize="11sp" />
+</LinearLayout>

@@ -31,7 +31,9 @@ data class Shelf(
     val title: String,
     val tracks: List<Track>,
     /** v4.6: an Artist page "Albums" shelf shows these instead of songs. */
-    val albums: List<com.minim.music.data.model.Album> = emptyList()
+    val albums: List<com.minim.music.data.model.Album> = emptyList(),
+    /** 5.7.0: a Search page artist row shows these artists (round photos) instead of songs. */
+    val artists: List<String> = emptyList()
 )
 
 /** What Discover shows, built once a day (and again when the time of day changes). */
@@ -271,11 +273,8 @@ class DiscoverEngine(
             candidates += Candidate("while", "Haven't played in a while", local = stale, isMix = false)
         }
 
-        // 10. Your top artists: each artist's most played song
-        val topArtists = artistRank.take(SHELF_SIZE).map { list -> list.maxByOrNull { it.playCount }!!.track }
-        if (topArtists.size >= MIN_SHELF) {
-            candidates += Candidate("artists", "Your top artists", local = topArtists, isMix = false)
-        }
+        // 10. (5.7.0) "Your top artists" is a row of round artist photos on the Search page now
+        // (see topArtists()), so it isn't a song shelf any more
 
         // 11 + 12 merge every fetched mix; they need a few seeds of their own if nothing else has any
         val extraSeeds = recent.map { it.track }.shuffled(rng).take(3)
@@ -370,6 +369,19 @@ class DiscoverEngine(
         DiscoverSnapshot(day, bucket, now, shelves, true)
     }
 
+    /**
+     * 5.7.0: the user's top artists for the Search page's round photo row, most played first.
+     * Worked out from the history each time (cheap, no network), so a new favourite shows up
+     * without waiting for the shelves to be rebuilt.
+     */
+    suspend fun topArtists(limit: Int = ARTIST_ROW): List<String> = withContext(Dispatchers.IO) {
+        val blocked = db.notInterestedIds.value
+        val plays = db.getAllTrackStats()
+            .filter { (it.playCount > 0 || it.lastPlayedAt > 0) && it.track.id !in blocked }
+            .map { it.track.artist to it.playCount }
+        rankTopArtists(plays, limit)
+    }
+
     /** Songs ordered by how often they appear (most played first), each once. */
     private fun topSongs(tracks: List<Track>): List<Track> =
         tracks.groupBy { it.id }.entries.sortedByDescending { it.value.size }.map { it.value.first() }
@@ -444,6 +456,10 @@ class DiscoverEngine(
         private const val MAX_SONG_SEC = 600L
         private const val PARALLEL = 3
         private const val MAX_SEEDS = 14
+        /** 5.7.0: how many round photos an artist row on the Search page shows. */
+        const val ARTIST_ROW = 10
+        /** An artist row needs at least this many artists, or it isn't shown. */
+        const val MIN_ARTIST_ROW = 3
 
         /** Late night 22-5, morning 5-12, afternoon 12-17, evening 17-22. */
         private val BUCKET_NAMES = listOf("late night", "morning", "afternoon", "evening")
@@ -463,6 +479,39 @@ class DiscoverEngine(
         private fun currentHour(): Int = java.time.LocalTime.now().hour
         private fun today(): Long = LocalDate.now().toEpochDay()
         private fun dayName(d: DayOfWeek): String = d.getDisplayName(TextStyle.FULL, Locale.US)
+
+        /** "Arijit Singh, Pritam - Topic" -> "Arijit Singh": the first artist, without the YouTube suffixes. */
+        fun displayArtist(line: String): String {
+            var t = MusicSourceAdapter.firstArtistName(line).trim()
+            if (t.endsWith("topic", ignoreCase = true)) {
+                val cut = t.dropLast(5).trimEnd()
+                if (cut.endsWith("-")) t = cut.dropLast(1).trimEnd()
+            }
+            if (t.length > 4 && t.endsWith("vevo", ignoreCase = true)) t = t.dropLast(4).trimEnd()
+            return t
+        }
+
+        /**
+         * 5.7.0: (artist line, counted plays) for every played song -> the first artists, most
+         * played first. Songs from before play counts count once. Each artist once, spelled the
+         * way most of their songs spell it.
+         */
+        fun rankTopArtists(plays: List<Pair<String, Int>>, limit: Int): List<String> {
+            val total = LinkedHashMap<String, Int>()
+            val spellings = HashMap<String, HashMap<String, Int>>()
+            for ((line, count) in plays) {
+                val name = displayArtist(line)
+                val key = norm(name)
+                if (key.isEmpty() || key == "unknownartist") continue
+                val c = maxOf(count, 1)
+                total[key] = (total[key] ?: 0) + c
+                val sp = spellings.getOrPut(key) { HashMap() }
+                sp[name] = (sp[name] ?: 0) + c
+            }
+            return total.entries.sortedByDescending { it.value }.take(limit).map { e ->
+                spellings[e.key]!!.entries.maxByOrNull { it.value }!!.key
+            }
+        }
 
         /** Artist names compared loosely: "Artist - Topic", "ArtistVEVO" and case don't matter. */
         fun norm(artist: String): String = artist.lowercase(Locale.US)

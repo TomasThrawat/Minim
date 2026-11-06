@@ -77,6 +77,10 @@ class FullscreenLyrics(
         suspend fun translateLyrics(data: LyricsData): List<String?>
         /** 5.6.0: the app's small tap haptic. */
         fun tapHaptic(v: View)
+        /** 5.7.0: the song time at [fraction] of the bar, as the time pill shows it ("2:47"). */
+        fun seekLabel(fraction: Float): String
+        /** 5.7.0: the light tick when the dragged bar reaches either end. */
+        fun edgeTick(v: View)
     }
 
     enum class State { CLOSED, OPENING, OPEN, CLOSING }
@@ -93,6 +97,12 @@ class FullscreenLyrics(
     private val message: TextView = overlay.findViewById(R.id.fs_message)
     private val pulse: ImageView = overlay.findViewById(R.id.fs_pulse)
     val bar: ProgressLine = overlay.findViewById(R.id.fs_bar)
+    /** 5.7.0: the time pill above the finger while the bar is dragged (like Now Playing's). */
+    private val seekPill: TextView = overlay.findViewById(R.id.fs_seek_pill)
+    private val seekPillBg = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = 40f * overlay.resources.displayMetrics.density
+    }
+    private var seekPillShown = false
 
     private val adapter = FullscreenLyricsAdapter(
         ResourcesCompat.getFont(overlay.context, R.font.poppins_semibold),
@@ -101,6 +111,24 @@ class FullscreenLyrics(
     /** 5.6.0: AI translation button (top right) and its failure note (top middle). */
     private val translateBtn: ImageView = overlay.findViewById(R.id.fs_translate)
     private val translateNote: TextView = overlay.findViewById(R.id.fs_translate_note)
+    /** 5.7.0 u46: switches between a stories upload's caption tracks (only with more than one). */
+    private val captionPill: TextView = overlay.findViewById(R.id.fs_caption_pill)
+    private val captionPillBg = android.graphics.drawable.GradientDrawable().apply { cornerRadius = 999f }
+    /** Tapped the caption pill (MainActivity moves to the next caption track). */
+    var onCaptionPill: (() -> Unit)? = null
+
+    /**
+     * 5.7.0 u46: a stories upload is playing, so this view shows its YouTube captions: it can open
+     * with none (and says so quietly), and there's no translate button.
+     */
+    var captionsMode: Boolean = false
+        set(v) {
+            if (field == v) return
+            field = v
+            if (!v) setCaptionChoice(null)
+            refreshMessage()
+            onLyricsForTranslation(if (!v && NowPlayingLyricSlot.mode(lyrics) == NowPlayingLyricSlot.Mode.LINES) lyrics else null)
+        }
     private val translateOnBg = android.graphics.drawable.GradientDrawable().apply {
         shape = android.graphics.drawable.GradientDrawable.OVAL
     }
@@ -189,8 +217,20 @@ class FullscreenLyrics(
         })
         if (useRenderEffect) applyRenderBlur()
         bar.onSeek = { f, finished -> host.seek(f, finished) }
+        // 5.7.0: the animated bar from Now Playing (5.5.0): thickens and grows a thumb when
+        // grabbed, a time pill above the finger, a light tick at either end, smooth fill and the
+        // buffered part
+        bar.expressive = true
+        bar.onScrub = { f, shown -> showSeekPill(f, shown) }
+        bar.onEdge = { host.edgeTick(bar) }
+        seekPill.background = seekPillBg
         overlay.excludeView = bar
-        overlay.moreExcluded = listOf(translateBtn, translateNote)
+        overlay.moreExcluded = listOf(translateBtn, translateNote, captionPill)
+        captionPill.setOnClickListener {
+            if (state != State.OPEN || captionPill.visibility != View.VISIBLE) return@setOnClickListener
+            host.tapHaptic(captionPill)
+            onCaptionPill?.invoke()
+        }
         translateBtn.setOnClickListener { onTranslateTapped() }
         translateNote.setOnClickListener { retryTranslation() }
         list.viewTreeObserver.addOnGlobalLayoutListener { if (keepCentred) keepActiveCentred() }
@@ -264,9 +304,9 @@ class FullscreenLyrics(
         } else {
             adapter.submit(emptyList(), false)
             // Only seen when the song changes while this mode is open; part 2 blocks opening it
-            showMessage(if (mode == NowPlayingLyricSlot.Mode.NONE) R.string.lyrics_unavailable else R.string.lyrics_loading)
+            refreshMessage()
         }
-        onLyricsForTranslation(if (mode == NowPlayingLyricSlot.Mode.LINES) data else null)
+        onLyricsForTranslation(if (mode == NowPlayingLyricSlot.Mode.LINES && !isCaptions()) data else null)
         if (state == State.CLOSED) return
         jumpToStart()
         if (state == State.OPEN && mode == NowPlayingLyricSlot.Mode.LINES) fadeInNewLines()
@@ -382,6 +422,56 @@ class FullscreenLyrics(
 
     fun setProgress(fraction: Float) = bar.setFraction(fraction)
 
+    /** 5.7.0: the latest playback position, so the bar fills smoothly and shows what's loaded. */
+    fun setPlayback(positionMs: Long, durationMs: Long, isPlaying: Boolean, bufferedMs: Long) =
+        bar.setPlayback(positionMs, durationMs, isPlaying, bufferedMs)
+
+    /** 5.7.0: the time pill floating above the finger while the bar is dragged. */
+    private fun showSeekPill(fraction: Float, shown: Boolean) {
+        val pill = seekPill
+        if (!shown) {
+            if (seekPillShown) {
+                seekPillShown = false
+                pill.animate().alpha(0f).scaleX(0.85f).scaleY(0.85f).translationYBy(dp(4f))
+                    .setDuration(140L).withEndAction { pill.visibility = View.INVISIBLE }.start()
+            }
+            return
+        }
+        // The cover's ink on the pill, the dark or light opposite for its text
+        seekPillBg.setColor(ink)
+        pill.setTextColor(if (inkIsDark) 0xFFFFFFFF.toInt() else 0xFF111111.toInt())
+        pill.text = host.seekLabel(fraction)
+        val barLoc = IntArray(2)
+        val hostLoc = IntArray(2)
+        bar.getLocationInWindow(barLoc)
+        overlay.getLocationInWindow(hostLoc)
+        val half = 2.5f * res.displayMetrics.density
+        val left = bar.paddingLeft + half
+        val right = bar.width - bar.paddingRight - half
+        val xInBar = left + (right - left) * fraction
+        val pw = if (pill.width > 0) pill.width.toFloat() else dp(52f)
+        val ph = if (pill.height > 0) pill.height.toFloat() else dp(28f)
+        val margin = dp(8f)
+        val x = (barLoc[0] - hostLoc[0] + xInBar - pw / 2f)
+            .coerceIn(margin, (overlay.width - pw - margin).coerceAtLeast(margin))
+        val y = barLoc[1] - hostLoc[1] + bar.height / 2f - ph - dp(16f)
+        pill.translationX = x
+        if (!seekPillShown) {
+            seekPillShown = true
+            pill.animate().cancel()
+            pill.translationY = y + dp(6f)
+            pill.alpha = 0f
+            pill.scaleX = 0.85f
+            pill.scaleY = 0.85f
+            pill.visibility = View.VISIBLE
+            pill.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(y)
+                .setInterpolator(android.view.animation.DecelerateInterpolator()).setDuration(160L)
+                .withEndAction(null).start()
+        } else if (pill.animation == null) {
+            pill.translationY = y
+        }
+    }
+
     /** The app palette changed (new song colours, dark mode): only the bar's start and the base. */
     fun onPalette(p: Pal) {
         backdrop.setBackgroundColor(p.bg)
@@ -395,7 +485,8 @@ class FullscreenLyrics(
 
     fun open() {
         if (isOpen) return
-        if (NowPlayingLyricSlot.mode(lyrics) != NowPlayingLyricSlot.Mode.LINES) return
+        // 5.7.0 u46: captions open even when there are none (the CC button says "show me")
+        if (NowPlayingLyricSlot.mode(lyrics) != NowPlayingLyricSlot.Mode.LINES && !isCaptions()) return
         val fromClosed = state == State.CLOSED
         if (fromClosed && adapter.flow && adapter.synced && clock.hasSample) {
             // Flow may have moved lines on its own clock: start on the line that's really playing
@@ -496,6 +587,9 @@ class FullscreenLyrics(
         overlay.visibility = View.GONE
         bar.translationX = 0f
         bar.translationY = 0f
+        seekPill.animate().cancel()
+        seekPill.visibility = View.INVISIBLE
+        seekPillShown = false
         pulse.animate().cancel()
         pulse.alpha = 0f
         host.nowPlayingContent.alpha = 1f
@@ -526,6 +620,7 @@ class FullscreenLyrics(
         message.translationY = lift
         translateBtn.alpha = a
         translateNote.alpha = a
+        captionPill.alpha = a
     }
 
     /** Where Now Playing's bar is, relative to where this bar rests at the bottom. */
@@ -666,6 +761,43 @@ class FullscreenLyrics(
             }
             start()
         }
+    }
+
+    private fun isCaptions(): Boolean =
+        captionsMode || com.minim.music.data.captions.CaptionLyrics.isCaptions(lyrics)
+
+    /** The quiet line shown in place of lines: loading, or none for this song / upload. */
+    private fun refreshMessage() {
+        val mode = NowPlayingLyricSlot.mode(lyrics)
+        if (mode == NowPlayingLyricSlot.Mode.LINES) return
+        val caps = isCaptions()
+        showMessage(when {
+            mode == NowPlayingLyricSlot.Mode.NONE && caps -> R.string.captions_none
+            mode == NowPlayingLyricSlot.Mode.NONE -> R.string.lyrics_unavailable
+            caps -> R.string.captions_loading
+            else -> R.string.lyrics_loading
+        })
+    }
+
+    /** 5.7.0 u46: the caption pill's text ("English \u00B7 auto"), or null to hide it. */
+    fun setCaptionChoice(label: String?) {
+        if (label == null || !captionsMode) {
+            captionPill.visibility = View.GONE
+            return
+        }
+        if (captionPill.text != label) captionPill.text = label
+        captionPill.contentDescription = res.getString(R.string.captions_switch, label)
+        if (captionPill.visibility != View.VISIBLE) {
+            captionPill.visibility = View.VISIBLE
+            captionPill.alpha = FullscreenLyricsLook.linesAlpha(mix)
+        }
+        styleCaptionPill()
+    }
+
+    private fun styleCaptionPill() {
+        captionPill.setTextColor(ink)
+        captionPillBg.setColor((ink and 0x00FFFFFF) or (TRANSLATE_NOTE_FILL shl 24))
+        if (captionPill.background !== captionPillBg) captionPill.background = captionPillBg
     }
 
     private fun showMessage(textRes: Int) {
@@ -1136,6 +1268,13 @@ class FullscreenLyrics(
                 translateNote.layoutParams = it
             }
         }
+        val pillTop = top + dp(CAPTION_PILL_SHIFT_DP).toInt()
+        (captionPill.layoutParams as? FrameLayout.LayoutParams)?.let {
+            if (it.topMargin != pillTop) {
+                it.topMargin = pillTop
+                captionPill.layoutParams = it
+            }
+        }
     }
 
     /** Ink colours; a soft filled circle behind the icon while translations are on. */
@@ -1149,6 +1288,7 @@ class FullscreenLyrics(
         translateNote.setTextColor(ink)
         translateNoteBg.setColor((ink and 0x00FFFFFF) or (TRANSLATE_NOTE_FILL shl 24))
         if (translateNote.background !== translateNoteBg) translateNote.background = translateNoteBg
+        styleCaptionPill()
     }
 
     companion object {
@@ -1159,6 +1299,7 @@ class FullscreenLyrics(
         const val TRANSLATING_MIN_ALPHA = 0.4f
         const val TRANSLATE_TOP_DP = 6f
         const val TRANSLATE_NOTE_SHIFT_DP = 6f
+        const val CAPTION_PILL_SHIFT_DP = 8f
         const val TRANSLATE_ON_FILL = 0x2E
         const val TRANSLATE_NOTE_FILL = 0x24
         const val OPEN_MS = 560L

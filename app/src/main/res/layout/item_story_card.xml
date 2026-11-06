@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5.7.0 u46: a stories upload in a shelf: the thumbnail at YouTube's own 16:9 (so the words on
+     it can be read), rounded like the rest of the app, a thin line for how far you got, then the
+     title and the length. Heard uploads go dim. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="220dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="14dp"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/story_card_frame"
+        android:layout_width="220dp"
+        android:layout_height="124dp">
+
+        <ImageView
+            android:id="@+id/story_card_art"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shape_card"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            android:tag="fill:soft" />
+
+        <!-- Continue listening: how much is heard -->
+        <FrameLayout
+            android:id="@+id/story_card_progress"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_gravity="bottom"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0.35"
+                android:background="@drawable/shape_underline"
+                android:backgroundTint="#FFFFFFFF" />
+
+            <View
+                android:id="@+id/story_card_progress_fill"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:background="@drawable/shape_underline"
+                android:backgroundTint="#FFFFFFFF" />
+        </FrameLayout>
+
+        <View
+            android:id="@+id/story_card_outline"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shape_card_outline"
+            android:tag="fill:fg"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/story_card_title"
+        style="@style/MinimText.Semi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:tag="text:fg"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/story_card_meta"
+        style="@style/MinimText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:tag="text:muted"
+        android:textSize="10sp" />
+</LinearLayout>

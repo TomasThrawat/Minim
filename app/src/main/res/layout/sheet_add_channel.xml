@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5.7.0 u44: add a channel. One big rounded box (a name or a link), a "search" pill that stays
+     faded until you type, then the channels found as the same pills as Search's artists. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <EditText
+        android:id="@+id/channel_input"
+        style="@style/MinimText.Semi"
+        android:layout_width="match_parent"
+        android:layout_height="58dp"
+        android:background="@drawable/shape_box_outline"
+        android:hint="@string/channel_input_hint"
+        android:imeOptions="actionSearch"
+        android:importantForAutofill="no"
+        android:inputType="textUri"
+        android:maxLength="200"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:singleLine="true"
+        android:tag="text:fg fill:fg"
+        android:textSize="17sp" />
+
+    <TextView
+        android:id="@+id/channel_search"
+        style="@style/MinimText.Semi"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="18dp"
+        android:alpha="0.35"
+        android:background="@drawable/shape_pill"
+        android:enabled="false"
+        android:gravity="center"
+        android:paddingStart="36dp"
+        android:paddingEnd="36dp"
+        android:tag="fill:fg text:bg"
+        android:text="@string/channel_search"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/channel_status"
+        style="@style/MinimText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:tag="text:muted"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/channel_results"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="vertical" />
+</LinearLayout>

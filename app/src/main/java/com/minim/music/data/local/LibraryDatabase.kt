@@ -647,17 +647,17 @@ class LibraryDatabase(context: Context) :
             arrayOf(weekStart)
         )
 
-        val likedCount = count("SELECT COUNT(*) FROM tracks WHERE is_liked = 1", emptyArray())
+        val likedCount = count("SELECT COUNT(*) FROM tracks WHERE is_liked = 1 AND source_url NOT LIKE '%minim=story%'", emptyArray())
         var recentLiked: String? = null
         db.rawQuery(
-            "SELECT title FROM tracks WHERE is_liked = 1 AND liked_at >= ? ORDER BY liked_at DESC LIMIT 1",
+            "SELECT title FROM tracks WHERE is_liked = 1 AND source_url NOT LIKE '%minim=story%' AND liked_at >= ? ORDER BY liked_at DESC LIMIT 1",
             arrayOf(likedSince)
         ).use { c -> if (c.moveToFirst()) recentLiked = c.getString(0) }
 
         var likedArtist: String? = null
         var likedArtistCount = 0
         db.rawQuery(
-            "SELECT artist, COUNT(*) AS c FROM tracks WHERE is_liked = 1 GROUP BY artist ORDER BY c DESC LIMIT 1", null
+            "SELECT artist, COUNT(*) AS c FROM tracks WHERE is_liked = 1 AND source_url NOT LIKE '%minim=story%' GROUP BY artist ORDER BY c DESC LIMIT 1", null
         ).use { c -> if (c.moveToFirst()) { likedArtist = c.getString(0); likedArtistCount = c.getInt(1) } }
 
         var playlistCount = 0
@@ -772,6 +772,9 @@ class LibraryDatabase(context: Context) :
             arrayOf(limit.toString())
         )
     }
+
+    /** 5.7.0 u47: liked songs without liked tapes, for greetings, shuffle, Gemini and the song picker. */
+    suspend fun getLikedSongs(): List<Track> = com.minim.music.data.stories.LibraryFilter.songsOnly(getLikedTracks())
 
     suspend fun getLikedTracks(): List<Track> = withContext(Dispatchers.IO) {
         queryTracks(

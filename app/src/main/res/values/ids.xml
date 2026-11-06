@@ -5,4 +5,10 @@
     <item name="tag_artwork_fade" type="id" />
     <item name="tag_entrance" type="id" />
     <item name="tag_press_scale" type="id" />
+    <!-- 5.7.0 u50: crash report screen -->
+    <item name="crash_report_title" type="id" />
+    <item name="crash_report_text" type="id" />
+    <item name="crash_report_copy" type="id" />
+    <item name="crash_report_share" type="id" />
+    <item name="crash_report_continue" type="id" />
 </resources>

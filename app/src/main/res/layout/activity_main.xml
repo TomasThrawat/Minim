@@ -87,7 +87,7 @@
 
     <include layout="@layout/view_library" />
 
-    <include layout="@layout/view_discover" />
+    <include layout="@layout/view_stories" />
 
     <!-- v4.6: Artist page sits under the shelf grid and the song list (its albums open there) -->
     <include layout="@layout/view_artist" />
@@ -101,12 +101,16 @@
 
     <include layout="@layout/view_search" />
 
+    <!-- 5.7.0 u45: 40dp (MiniPill.SIDE_MARGIN_DP) from each edge, so a long title can't stretch
+         the floating pill to the sides of the screen -->
     <include
         android:id="@+id/mini_player"
         layout="@layout/view_mini_player"
         android:layout_width="wrap_content"
         android:layout_height="54dp"
         android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="40dp"
+        android:layout_marginEnd="40dp"
         android:layout_marginBottom="26dp"
         android:visibility="gone" />
 

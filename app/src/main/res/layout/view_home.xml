@@ -200,7 +200,7 @@
         android:layout_height="wrap_content"
         android:padding="6dp"
         android:tag="text:fg"
-        android:text="@string/home_swipe_hint"
+        android:text="@string/home_first_tip"
         android:textSize="11sp"
         app:layout_constraintBottom_toBottomOf="@id/home_gl_hint"
         app:layout_constraintEnd_toEndOf="parent"

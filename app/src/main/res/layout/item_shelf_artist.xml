@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5.7.0: an artist in a Search page artist row: round photo (or their first letter), name -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="96dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="14dp"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:layout_width="96dp"
+        android:layout_height="96dp">
+
+        <TextView
+            android:id="@+id/artist_letter"
+            style="@style/MinimText.Bold"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shape_circle"
+            android:gravity="center"
+            android:importantForAccessibility="no"
+            android:tag="text:fg fill:soft"
+            android:textSize="32sp" />
+
+        <ImageView
+            android:id="@+id/artist_photo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/shape_circle"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/artist_name"
+        style="@style/MinimText.Semi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:singleLine="true"
+        android:tag="text:fg"
+        android:textSize="12sp" />
+</LinearLayout>

@@ -17,7 +17,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp" />
 
-    <androidx.core.widget.NestedScrollView
+    <com.minim.music.ui.FadingNestedScrollView
         android:id="@+id/stats_scroll"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -698,5 +698,5 @@
 
             </LinearLayout>
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+    </com.minim.music.ui.FadingNestedScrollView>
 </LinearLayout>

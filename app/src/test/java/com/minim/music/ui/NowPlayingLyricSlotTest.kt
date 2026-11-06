@@ -132,7 +132,9 @@ class NowPlayingLyricSlotTest {
         assertTrue(main.contains("npLyric.setHostVisible(false)"))
         assertTrue(main.contains("npLyric.setCovered("))
         assertTrue(main.contains("npLyric.flowStyle = app.preferences.isFlowLyrics"))
-        assertTrue(main.contains("npLyric.setLyrics(data, getString(R.string.np_lyrics_unavailable)"))
+        // 5.7.0 u46: stories uploads say "No captions for this one" instead
+        assertTrue(main.contains("npLyric.setLyrics(data, getString("))
+        assertTrue(main.contains("CaptionLyrics.isCaptions(data)) R.string.captions_none else R.string.np_lyrics_unavailable"))
         assertFalse(main.contains("fun setNpLyric("))
     }
 }

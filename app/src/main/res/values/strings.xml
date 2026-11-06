@@ -12,7 +12,7 @@
 
     <!-- Home -->
     <string name="youre_listening">You\'re listening</string>
-    <string name="home_swipe_hint">Swipe up to open Discover.</string>
+    <string name="home_first_tip">Tap search for songs picked for you.</string>
 
     <!-- Search -->
     <string name="search_hint">Songs, artists…</string>
@@ -45,6 +45,19 @@
     <!-- Lyrics -->
     <string name="lyrics_loading">Fetching lyrics…</string>
     <string name="lyrics_unavailable">Lyrics unavailable for this track.</string>
+    <!-- 5.7.0 u46: YouTube captions for stories uploads -->
+    <string name="captions_none">No captions for this one</string>
+    <string name="captions_loading">Fetching captions…</string>
+    <string name="captions_switch">Captions: %1$s. Tap to switch</string>
+    <string name="captions_auto">%1$s · auto</string>
+    <string name="np_captions">Captions</string>
+    <!-- 5.7.0 u46: stories shelves -->
+    <string name="stories_continue">Continue listening</string>
+    <string name="stories_new_week">New this week</string>
+    <string name="stories_chip_short">Under 20 mins</string>
+    <string name="stories_chip_long">30+ mins</string>
+    <string name="stories_min_left">%1$d min left</string>
+    <string name="stories_none_length">Nothing that long here. Tap the chip again to see everything.</string>
     <string name="fs_lyrics_play_pause">Play or pause</string>
     <string name="fs_lyrics_play_from_line">Play from this line</string>
     <string name="fs_translate_show">Translate lyrics to English</string>
@@ -53,7 +66,7 @@
     <string name="fs_translating">Translating</string>
 
     <!-- Library -->
-    <string name="liked_songs">Liked Songs</string>
+    <string name="liked_songs">Liked</string>
     <string name="new_playlist">New Playlist</string>
     <string name="recents_empty">Songs you play will show up here.</string>
     <string name="liked_empty">Songs you like will show up here.</string>
@@ -128,29 +141,33 @@
     <string name="opt_15">15 min</string>
     <string name="opt_30">30 min</string>
     <string name="opt_60">60 min</string>
+    <string name="opt_45">45 min</string>
     <string name="sleep_status">Stops in %1$s</string>
     <string name="settings_storage">Storage</string>
     <string name="clear_cache">Clear image cache</string>
     <string name="cache_cleared">Image cache cleared</string>
     <!-- Hotfix 4.9.10: crash catcher card -->
     <string name="crash_card_title">Minim crashed last time</string>
-    <string name="crash_card_body">Copy the report and send it over so it can be fixed.</string>
     <string name="crash_card_copy">Copy</string>
-    <string name="crash_card_dismiss">Dismiss</string>
+    <!-- 5.7.0 u50: crash report screen -->
+    <string name="crash_report_body">Here\'s what went wrong. Copy or share it so it can be fixed. Nothing is sent unless you share it.</string>
+    <string name="crash_report_share">Share</string>
+    <string name="crash_report_continue">Continue</string>
     <string name="crash_card_copied">Crash report copied</string>
     <string name="settings_about">About</string>
     <string name="about_text">Minim %1$s (build %2$d)\nSearch by NewPipeExtractor. Lyrics from LrcLib.</string>
     <string name="about_credits">Designed by Gaurab\nBuilt by Charlie (Sesame AI)\nEarly code by Google Gemini</string>
     <!-- v4.3 Discover -->
-    <string name="tab_discover">discover</string>
+    <string name="tab_stories">tapes</string>
+    <string name="shelf_top_artists">Your top artists</string>
     <string name="discover_loading">Finding songs for you…</string>
-    <string name="discover_empty">Play a few songs and Discover will fill up.</string>
-    <string name="discover_thin">Keep listening. Discover fills up as it learns what you like.</string>
+    <string name="discover_empty">Play a few songs and your picks will fill up.</string>
+    <string name="discover_thin">Keep listening. Your picks fill up as Minim learns what you like.</string>
     <!-- v4.7: Discover's big empty state, in the welcome screens' style -->
     <string name="discover_welcome_title">Play a few\nsongs and\nthis fills up.</string>
-    <string name="discover_welcome_empty">Discover picks songs from what you play.</string>
+    <string name="discover_welcome_empty">Songs picked from what you play show up here.</string>
     <string name="discover_welcome_thin">Almost there. Keep listening and it learns what you like.</string>
-    <string name="discover_error">Couldn\'t reach Discover. Tap to try again.</string>
+    <string name="discover_error">Couldn\'t load your picks. Tap to try again.</string>
     <string name="play_all">Play all</string>
     <string name="not_interested">Not interested</string>
     <string name="not_interested_done">Got it. You won\'t see that song here.</string>
@@ -185,7 +202,7 @@
     <string name="welcome_name_hint">Enter your name</string>
     <string name="welcome_skip">skip</string>
     <string name="welcome_start">start vibing</string>
-    <string name="welcome_title_3">We\'ll build\nyour\ndiscover\nfeed\nshortly.\nYou can\nstart\nlistening\nnow.</string>
+    <string name="welcome_title_3">We\'ll pick\nsongs\nfor you\nshortly.\nYou can\nstart\nlistening\nnow.</string>
 
     <!-- v4.8: Minim sheets -->
     <string name="sheet_close">Close</string>
@@ -204,8 +221,8 @@
     <string name="note_playing_next">Playing next</string>
     <string name="note_added_queue">Added to queue</string>
     <string name="note_already_next">Already up next</string>
-    <string name="note_liked">Added to Liked Songs</string>
-    <string name="note_unliked">Removed from Liked Songs</string>
+    <string name="note_liked">Added to Liked</string>
+    <string name="note_unliked">Removed from Liked</string>
     <string name="note_removed_from">Removed from %1$s</string>
     <string name="note_removed_queue">Removed from queue</string>
     <!-- v4.9.7 Now Playing menu -->
@@ -385,7 +402,7 @@
     <string name="add_songs_title">Add to %1$s</string>
     <string name="add_songs_hint">Search songs</string>
     <string name="add_songs_recent">Recent</string>
-    <string name="add_songs_liked">Liked songs</string>
+    <string name="add_songs_liked">Liked</string>
     <string name="add_songs_nothing_yet">Search for a song to add it.</string>
     <string name="add_songs_searching">Searching…</string>
     <string name="add_songs_none">No songs found.</string>
@@ -495,7 +512,7 @@
     <string name="offline_save">Save offline</string>
     <string name="offline_remove">Remove from offline</string>
     <string name="offline_left">%1$d left</string>
-    <string name="offline_empty">Nothing saved yet. Long-press a song, a playlist or Liked Songs and tap Save offline.</string>
+    <string name="offline_empty">Nothing saved yet. Long-press a song, a tape, a playlist or Liked and tap Save offline.</string>
     <string name="offline_nothing_to_save">There are no songs to save here yet.</string>
     <string name="offline_note_already">Already saved offline</string>
     <string name="offline_note_saving_one">Saving offline</string>
@@ -514,4 +531,85 @@
     <string name="offline_remove_all_ok">Remove all</string>
     <string name="offline_note_removed_all">Offline songs removed</string>
     <string name="delete_playlist">Delete playlist</string>
+    <!-- 5.7.0 u44: the stories tab (YouTube channels, uploads played as audio) -->
+    <string name="add_channel">Add Channel</string>
+    <string name="add_channel_pill">+ Add Channel</string>
+    <string name="add_channel_short">Add</string>
+    <string name="youre_listening_to">You\'re listening to</string>
+    <string name="stories_empty_title">Your\nchannels,\nas audio.</string>
+    <string name="stories_empty_sub">Add a YouTube channel and its uploads land here, newest first. They play like songs, without the video. Shorts stay out.</string>
+    <string name="stories_latest">Latest uploads</string>
+    <string name="stories_loading">Getting the latest uploads…</string>
+    <string name="stories_error">Couldn\'t load uploads. Pull down to try again.</string>
+    <string name="stories_none">No uploads here yet.</string>
+    <string name="stories_hint">Long-press a channel to remove it.</string>
+    <string name="sheet_add_channel">Add a channel</string>
+    <string name="sheet_add_channel_sub">Search by name or paste a channel link</string>
+    <string name="channel_input_hint">Channel name or link</string>
+    <string name="channel_search">search</string>
+    <string name="channel_searching">Looking…</string>
+    <string name="channel_none_found">No channels found. Try another name or paste the link.</string>
+    <string name="channel_search_error">Couldn\'t reach YouTube. Try again in a bit.</string>
+    <string name="channel_added_already">Already added</string>
+    <string name="note_channel_added">Added %1$s</string>
+    <string name="note_channel_removed">Removed %1$s</string>
+    <string name="remove_channel_title">Remove %1$s?</string>
+    <string name="remove_channel_sub">Its uploads leave tapes. You can follow it again any time.</string>
+    <string name="remove_channel_ok">Remove</string>
+    <string name="story_age_today">today</string>
+    <string name="story_age_yesterday">yesterday</string>
+    <plurals name="story_age_days"><item quantity="one">%d day ago</item><item quantity="other">%d days ago</item></plurals>
+    <plurals name="story_age_weeks"><item quantity="one">%d week ago</item><item quantity="other">%d weeks ago</item></plurals>
+    <plurals name="story_age_months"><item quantity="one">%d month ago</item><item quantity="other">%d months ago</item></plurals>
+    <plurals name="story_age_years"><item quantity="one">%d year ago</item><item quantity="other">%d years ago</item></plurals>
+
+    <!-- 5.7.0 u47: tapes (was stories), Liked/Offline filters, channel pages, New to You, sleep timer, speed -->
+    <string name="list_filter_songs">Songs</string>
+    <string name="list_filter_tapes">Tapes</string>
+    <!-- 5.7.0 u48: liked artists -->
+    <string name="list_filter_artists">Artists</string>
+    <string name="liked_empty_artists">Artists you like show up here. Tap the heart on an Artist page.</string>
+    <plurals name="artist_count"><item quantity="one">%d artist</item><item quantity="other">%d artists</item></plurals>
+    <string name="artist_like_cd">Like %1$s</string>
+    <string name="artist_unlike_cd">Unlike %1$s</string>
+    <string name="artist_liked_note">Added %1$s to Liked</string>
+    <string name="artist_unliked_note">Removed %1$s from Liked</string>
+    <string name="liked_empty_tapes">Tapes you like show up here. Tap the heart while a tape plays.</string>
+    <string name="offline_empty_tapes">No tapes saved yet. Long-press a tape, or tap the download button in Now Playing.</string>
+    <plurals name="tape_count"><item quantity="one">%d tape</item><item quantity="other">%d tapes</item></plurals>
+    <string name="tapes_chip_new">New to You</string>
+    <string name="tapes_new_label">From channels like yours</string>
+    <string name="tapes_new_loading">Finding tapes from channels like yours…</string>
+    <string name="tapes_new_none">Nothing new to you right now. Pull down to try again.</string>
+    <string name="tapes_new_error">Couldn\'t load New to You. Pull down to try again.</string>
+    <string name="tapes_new_need">Follow a channel first, and New to You finds others like it.</string>
+    <string name="channel_follow">Follow</string>
+    <string name="channel_following">Following</string>
+    <string name="note_channel_followed">Following %1$s</string>
+    <string name="note_channel_unfollowed">Unfollowed %1$s</string>
+    <string name="channel_latest">Latest</string>
+    <string name="channel_popular">Popular</string>
+    <string name="channel_loading">Loading videos…</string>
+    <string name="channel_error">Couldn\'t load this channel. Tap to try again.</string>
+    <string name="channel_nothing">No videos here yet.</string>
+    <string name="channel_label">Channel</string>
+    <string name="sheet_go_to_channel">Go to channel</string>
+    <string name="played_cd">played</string>
+    <string name="channel_new_upload_cd">%1$s, new upload</string>
+    <string name="np_download">Save offline</string>
+    <string name="np_saved_offline">Saved offline</string>
+    <string name="sleep_custom">Custom</string>
+    <string name="opt_minutes">%1$d min</string>
+    <string name="sleep_end_song">End of this song</string>
+    <string name="sleep_end_tape">End of this tape</string>
+    <string name="sleep_custom_sub">How many minutes? (1 to 720)</string>
+    <string name="sleep_custom_hint">Minutes</string>
+    <string name="sleep_custom_ok">start</string>
+    <string name="sleep_custom_bad">Pick a number from 1 to 720.</string>
+    <string name="note_sleep_end_song">Stopping at the end of this song</string>
+    <string name="note_sleep_end_tape">Stopping at the end of this tape</string>
+    <string name="np_sleep_cd">Sleep timer, %1$s left. Tap to change.</string>
+    <string name="np_speed">Playback speed</string>
+    <string name="np_speed_sub">Remembered for %1$s</string>
+    <string name="note_speed">%1$s for %2$s</string>
 </resources>

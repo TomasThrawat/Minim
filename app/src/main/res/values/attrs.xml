@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 5.7.0 u49: lists that fade out under their header and behind the floating mini player -->
+    <declare-styleable name="EdgeFadeList">
+        <!-- true: melt away behind the floating mini player when it is showing; false: a short fade at the bottom edge only -->
+        <attr name="fadeAroundPill" format="boolean" />
+    </declare-styleable>
+</resources>

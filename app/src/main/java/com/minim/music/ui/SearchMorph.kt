@@ -39,6 +39,8 @@ class SearchMorph(
     private val go: View,
     private val results: RecyclerView,
     private val status: View,
+    /** 5.7.0: the picked-for-you shelves shown while the box is empty (null in tests). */
+    private val discover: View? = null,
     private val colors: () -> Pair<Int, Int>, // (fg, bg)
     private val animationsOn: () -> Boolean
 ) {
@@ -139,6 +141,7 @@ class SearchMorph(
                     val r = SearchMotion.window(t, 0.55f, 1f)
                     results.alpha = r
                     status.alpha = r
+                    discover?.alpha = r
                 }
             }
             addListener(object : AnimatorListenerAdapter() {
@@ -162,7 +165,11 @@ class SearchMorph(
     private fun prepareRows(): List<View> {
         val rows = ArrayList<View>()
         if (status.visibility == View.VISIBLE) rows.add(status)
-        for (i in 0 until results.childCount) rows.add(results.getChildAt(i))
+        if (results.visibility == View.VISIBLE) {
+            for (i in 0 until results.childCount) rows.add(results.getChildAt(i))
+        }
+        // 5.7.0: the shelves come up as one block, after the status line
+        discover?.takeIf { it.visibility == View.VISIBLE }?.let { rows.add(it) }
         val shift = 10f * density
         for (v in rows) { v.alpha = 0f; v.translationY = shift }
         results.alpha = 1f
@@ -189,6 +196,7 @@ class SearchMorph(
         go.scaleX = 1f; go.scaleY = 1f
         results.alpha = 1f
         status.alpha = 1f
+        discover?.alpha = 1f
         screen.background?.alpha = 255
     }
 

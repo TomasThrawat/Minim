@@ -112,11 +112,69 @@
             android:textSize="11sp" />
     </LinearLayout>
 
+    <!-- 5.7.0 u47: Liked and Offline: Songs or Tapes (hidden on other lists) -->
+    <LinearLayout
+        android:id="@+id/list_filter_row"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="4dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/list_filter_songs"
+            style="@style/MinimText"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="@string/list_filter_songs"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/list_filter_tapes"
+            style="@style/MinimText"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="@string/list_filter_tapes"
+            android:textSize="12sp" />
+
+        <!-- 5.7.0 u48: Liked only: the artists you liked on their Artist page -->
+        <TextView
+            android:id="@+id/list_filter_artists"
+            style="@style/MinimText"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:text="@string/list_filter_artists"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <androidx.recyclerview.widget.RecyclerView
+        <com.minim.music.ui.FadingRecyclerView
             android:id="@+id/list_tracks"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

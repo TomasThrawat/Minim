@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5.7.0 u44: a quiet line in stories (loading, nothing yet, couldn't load, the remove hint) -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/story_note"
+    style="@style/MinimText"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="40dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="40dp"
+    android:paddingBottom="10dp"
+    android:tag="text:muted"
+    android:textSize="13sp" />

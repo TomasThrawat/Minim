@@ -103,7 +103,8 @@ import kotlin.math.roundToInt
 /**
  * Minim v4: one activity, every screen stacked in activity_main.
  *
- *  Tabs (one shown at a time): Home, Discover, Stats (v4.9, was Recents), Library. Swipe up on Home opens Discover.
+ *  Tabs (one shown at a time): Home, stories (5.7.0 u44, was Lab, was Discover), Stats (v4.9, was Recents), Library.
+ *  5.7.0: no swipe up on Home any more; Discover's shelves live on the Search page.
  *  On top of them, in order: List (Liked Songs / a playlist), Search, the floating mini player,
  *  Now Playing, Lyrics, Queue, Settings.
  *
@@ -114,7 +115,7 @@ class MainActivity : AppCompatActivity() {
 
     private val app: MinimApp by lazy { MinimApp.instance }
 
-    private enum class Tab { HOME, DISCOVER, STATS, LIBRARY }
+    private enum class Tab { HOME, STORIES, STATS, LIBRARY }
 
     // ---- small view groups that appear more than once -------------------------------------
 
@@ -122,15 +123,17 @@ class MainActivity : AppCompatActivity() {
         val logo: View = root.findViewById(R.id.top_logo)
         val search: View = root.findViewById(R.id.top_search)
         val tabHome: View = root.findViewById(R.id.top_tab_home)
-        val tabDiscover: View = root.findViewById(R.id.top_tab_discover)
+        val tabStories: View = root.findViewById(R.id.top_tab_stories)
         val tabStats: View = root.findViewById(R.id.top_tab_stats)
         val tabLibrary: View = root.findViewById(R.id.top_tab_library)
         val lineHome: View = root.findViewById(R.id.top_line_home)
-        val lineDiscover: View = root.findViewById(R.id.top_line_discover)
+        val lineStories: View = root.findViewById(R.id.top_line_stories)
         val lineStats: View = root.findViewById(R.id.top_line_stats)
         /** v4.9: "new" tag and recap dot next to "stats". */
         val statsNew: View = root.findViewById(R.id.top_stats_new)
         val statsDot: View = root.findViewById(R.id.top_stats_dot)
+        /** 5.7.0 u44: "new" tag next to "stories" (until the tab is first tapped). */
+        val storiesNew: View = root.findViewById(R.id.top_stories_new)
         val lineLibrary: View = root.findViewById(R.id.top_line_library)
         /** v5.0: the profile picture that replaced the gear; still opens Settings. */
         val gear: AvatarView = root.findViewById(R.id.top_gear)
@@ -147,6 +150,8 @@ class MainActivity : AppCompatActivity() {
         val like: ImageView = actions.findViewById(R.id.mini_like)
         val play: ImageView = actions.findViewById(R.id.mini_play)
         val next: ImageView = actions.findViewById(R.id.mini_next)
+        /** 5.7.0 u48: the pill's background, with the fill sweep. */
+        var sweep: PillSweepDrawable? = null
     }
 
     private class Controls(root: View) {
@@ -173,7 +178,7 @@ class MainActivity : AppCompatActivity() {
     private var statsDay = 0
     private var statsJob: Job? = null
     private val artistPhotoTried = HashSet<String>()
-    private lateinit var screenDiscover: View
+    private lateinit var screenStories: View
     private lateinit var screenShelf: View
     private lateinit var discoverRefresh: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
     private lateinit var discoverMessage: TextView
@@ -232,6 +237,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var npLyric: NowPlayingLyricView
     private lateinit var npControlsRoot: View
     private lateinit var npTitle: TextView
+    private lateinit var npVibing: TextView
     private lateinit var npArtist: TextView
     private lateinit var npControls: Controls
 
@@ -239,12 +245,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var queueEmpty: View
 
     private lateinit var settingsName: EditText
-    private lateinit var setSleepStatus: TextView
 
     // ---- lists (adapters are in ui/adapter) --------------------------------------------------
 
     private lateinit var libraryAdapter: GridTileAdapter
     private lateinit var listAdapter: TrackAdapter
+    private lateinit var likedArtistAdapter: com.minim.music.ui.adapter.LikedArtistAdapter
     private lateinit var searchAdapter: SearchResultsAdapter
     private lateinit var queueAdapter: QueueAdapter
 
@@ -285,9 +291,7 @@ class MainActivity : AppCompatActivity() {
     private var recentTracks: List<Track> = emptyList()
     private var refreshJob: Job? = null
 
-    private var sleepChoice = 0
 
-    private var screenGestures: GestureDetector? = null
 
     // 5.5.0: the mini player <-> Now Playing morph (follows the finger both ways)
     private lateinit var npMorph: NowPlayingMorph
@@ -296,7 +300,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var queueList: RecyclerView
     /** Keeps the floating mini player on screen (invisible) while it morphs, so it has a place. */
     private var miniHeldForMorph = false
-    /** This touch started on a mini player pill: a swipe up opens Now Playing, never Discover. */
+    /** This touch started on a mini player pill: a swipe up opens Now Playing. */
     private var downOnMiniPill = false
     private var npSwipeCandidate = false
     private var npSwiping = false
@@ -337,8 +341,22 @@ class MainActivity : AppCompatActivity() {
 
     // ==========================================================================================
 
+    /**
+     * 5.7.0 u50: true when this launch went straight to the "Minim crashed last time" screen
+     * ([CrashReportActivity]) instead of building the app. Nothing else was set up, so every
+     * lifecycle method below just hands over to Android.
+     */
+    private var showingCrashReport = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 5.7.0 u50: a crash report from last time is shown first, before any of the app's own
+        // screens are built, so even a crash that happens on every launch can be copied or shared
+        if (CrashReportActivity.openIfPending(this, savedInstanceState)) {
+            showingCrashReport = true
+            return
+        }
+        intent?.removeExtra(CrashReportActivity.EXTRA_SHOWN)
         setContentView(R.layout.activity_main)
         // v4.6.1: draw behind the status bar so the Artist page photo can reach the top of the
         // screen. Every other screen is kept below it by the root's padding (setupWindowInsets).
@@ -358,6 +376,7 @@ class MainActivity : AppCompatActivity() {
         setupSearch()
         setupLists()
         setupDiscover()
+        setupStories()
         setupArtist()
         setupSheets()
         setupImport()
@@ -365,10 +384,10 @@ class MainActivity : AppCompatActivity() {
         setupMiniPlayers()
         setupNowPlaying()
         setupLyrics()
+        fsLyrics.onCaptionPill = { app.playbackController.nextCaptionTrack() }
         setupQueue()
         setupSettings()
         setupGemini()
-        setupScreenGestures()
         setupBack()
         setupWelcome()
         setupStats()
@@ -386,8 +405,8 @@ class MainActivity : AppCompatActivity() {
         observe()
         // 5.3.0: Share -> Minim opened the app (a cold start); onNewIntent covers a running one
         if (savedInstanceState == null) handleImportIntent(intent)
-        // Hotfix 4.9.10: "Minim crashed last time" with a Copy button, once, after a crash
-        CrashCard.showIfPending(this, pal)
+        // 5.7.0 u50: "Minim crashed last time" is its own screen now (CrashReportActivity), shown at
+        // the top of onCreate before anything here can crash again
 
         lifecycleScope.launch {
             app.database.refreshLikedCache()
@@ -398,6 +417,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (showingCrashReport) return
         if (::fsLyrics.isInitialized) fsLyrics.setHostVisible(true)
         // v4.9.9: the Now Playing lyric line's Flow frames too
         if (::npLyric.isInitialized) npLyric.setHostVisible(true)
@@ -421,6 +441,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (showingCrashReport) return
         isActivityResumed = true
         syncGreetingRotation()
         // v4.9.6: back from the "Install unknown apps" setting with it turned on: carry on installing
@@ -429,12 +450,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
+        if (showingCrashReport) {
+            super.onPause()
+            return
+        }
         isActivityResumed = false
         syncGreetingRotation()
         super.onPause()
     }
 
     override fun onStop() {
+        if (showingCrashReport) {
+            super.onStop()
+            return
+        }
         wasStopped = true
         greetingFileJob?.cancel()
         greetingFileJob = null
@@ -448,6 +477,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        if (showingCrashReport) return
         // uiMode changes are handled here (no restart): keep the app's own Light/Dark choice
         animatePaletteTo(appPal())
     }
@@ -457,7 +487,7 @@ class MainActivity : AppCompatActivity() {
         screenHome = findViewById(R.id.screen_home)
         screenStats = findViewById(R.id.screen_stats)
         statsScreen = StatsScreen(screenStats, app.artworkPipeline)
-        screenDiscover = findViewById(R.id.screen_discover)
+        screenStories = findViewById(R.id.screen_stories)
         screenShelf = findViewById(R.id.screen_shelf)
         screenLibrary = findViewById(R.id.screen_library)
         screenArtist = findViewById(R.id.screen_artist)
@@ -473,7 +503,7 @@ class MainActivity : AppCompatActivity() {
 
         topRows = listOf(
             Tab.HOME to TopRow(findViewById(R.id.home_top)),
-            Tab.DISCOVER to TopRow(findViewById(R.id.discover_top)),
+            Tab.STORIES to TopRow(findViewById(R.id.stories_top)),
             Tab.STATS to TopRow(findViewById(R.id.stats_top)),
             Tab.LIBRARY to TopRow(findViewById(R.id.library_top))
         )
@@ -481,6 +511,12 @@ class MainActivity : AppCompatActivity() {
         homeListening = findViewById(R.id.home_listening)
         homeMini = Mini(findViewById(R.id.home_mini), findViewById(R.id.home_mini_actions))
         floatMini = Mini(findViewById(R.id.mini_player))
+        // 5.7.0 u48: both pills fill from the left as the song plays (the tint stays the Painter's)
+        for (mini in listOf(homeMini, floatMini)) {
+            val sweep = PillSweepDrawable(animationsOn = { animationsOn() })
+            mini.sweep = sweep
+            mini.root.background = sweep
+        }
         homeGreeting = findViewById(R.id.home_greeting)
         homeSearch = findViewById(R.id.home_search)
         homeHint = findViewById(R.id.home_hint)
@@ -497,13 +533,13 @@ class MainActivity : AppCompatActivity() {
         npLyric = findViewById(R.id.np_lyric)
         npControlsRoot = findViewById(R.id.np_controls)
         npTitle = findViewById(R.id.np_title)
+        npVibing = findViewById(R.id.np_vibing)
         npArtist = findViewById(R.id.np_artist)
         npControls = Controls(findViewById(R.id.np_controls))
 
         queueEmpty = findViewById(R.id.queue_empty)
 
         settingsName = findViewById(R.id.settings_name)
-        setSleepStatus = findViewById(R.id.set_sleep_status)
 
         // Round cover art: clip the image to its background shape (circle / rounded card)
         homeMini.art.clipToOutline = true
@@ -518,6 +554,8 @@ class MainActivity : AppCompatActivity() {
         // 5.5.0: the animated hearts (the burst and big heart draw in the root's overlay)
         heartFx = HeartFx(root) { ValueAnimator.areAnimatorsEnabled() }
         for (v in listOf(homeMini.like, floatMini.like, npControls.like)) heartFx.attach(v)
+        // 5.7.0 u50: the Artist page heart is attached in setupArtist(), once artistLike exists.
+        // u48 attached it here, before setupArtist() had looked it up, so every launch crashed.
     }
 
     // ==========================================================================================
@@ -537,16 +575,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupTopRows() {
         for ((rowTab, row) in topRows) {
-            // Home shows the "minim" logo; Recents and Library show a search pill instead
-            row.logo.visibility = if (rowTab == Tab.HOME) View.VISIBLE else View.GONE
-            row.search.visibility = if (rowTab == Tab.HOME) View.GONE else View.VISIBLE
+            // Home and (5.7.0 u46) stories show the "minim" logo; Stats and Library a search pill instead
+            row.logo.visibility = if (com.minim.music.data.stories.TopRowBranding.showsLogo(rowTab.name)) View.VISIBLE else View.GONE
+            // 5.7.0 u45: stories has no music search (its + Add is the first tile of the channel row)
+            row.search.visibility = if (rowTab == Tab.HOME || rowTab == Tab.STORIES) View.GONE else View.VISIBLE
+            row.storiesNew.visibility = if (app.preferences.storiesTabSeen) View.GONE else View.VISIBLE
             row.lineHome.visibility = if (rowTab == Tab.HOME) View.VISIBLE else View.INVISIBLE
-            row.lineDiscover.visibility = if (rowTab == Tab.DISCOVER) View.VISIBLE else View.INVISIBLE
+            row.lineStories.visibility = if (rowTab == Tab.STORIES) View.VISIBLE else View.INVISIBLE
             row.lineStats.visibility = if (rowTab == Tab.STATS) View.VISIBLE else View.INVISIBLE
             row.lineLibrary.visibility = if (rowTab == Tab.LIBRARY) View.VISIBLE else View.INVISIBLE
 
             row.tabHome.setOnClickListener { switchTabByHand(it, Tab.HOME) }
-            row.tabDiscover.setOnClickListener { switchTabByHand(it, Tab.DISCOVER) }
+            row.tabStories.setOnClickListener { switchTabByHand(it, Tab.STORIES) }
             row.tabStats.setOnClickListener { switchTabByHand(it, Tab.STATS) }
             row.tabLibrary.setOnClickListener { switchTabByHand(it, Tab.LIBRARY) }
             row.gear.setOnClickListener { v -> openSettings(from = v) }
@@ -574,6 +614,8 @@ class MainActivity : AppCompatActivity() {
         )
         val avail = resources.displayMetrics.widthPixels
         val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        // 5.7.0 u45: the left area is the same fixed width on every tab again (u44 widened it for
+        // the "+ Add Channel" pill, which moved to the stories channel row)
         for (fit in levels) {
             var needed = 0
             for ((_, row) in topRows) {
@@ -582,7 +624,7 @@ class MainActivity : AppCompatActivity() {
                 (row.logo.layoutParams as ViewGroup.MarginLayoutParams).marginStart = dp(fit.logoStart.toFloat()).toInt()
                 (row.search.layoutParams as ViewGroup.MarginLayoutParams).marginStart = dp(fit.pillStart.toFloat()).toInt()
                 (row.search as? ViewGroup)?.getChildAt(1)?.visibility = if (fit.pillText) View.VISIBLE else View.GONE
-                for (t in listOf(row.tabHome, row.tabDiscover, row.tabStats, row.tabLibrary)) {
+                for (t in listOf(row.tabHome, row.tabStories, row.tabStats, row.tabLibrary)) {
                     // v4.9: the Stats tab's text sits in a row with its "new" tag / dot
                     val first = (t as? ViewGroup)?.getChildAt(0)
                     ((first as? TextView) ?: ((first as? ViewGroup)?.getChildAt(0) as? TextView))?.textSize = fit.sp
@@ -626,7 +668,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** A tab tap (or swipe-up): a light tick when the tab really changes. */
+    /** A tab tap: a light tick when the tab really changes. */
     private fun switchTabByHand(v: View, target: Tab) {
         if (target != tab) haptic(v, HapticFeedbackConstants.CLOCK_TICK)
         showTab(target)
@@ -634,6 +676,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTab(target: Tab, animate: Boolean = true) {
         if (target == Tab.STATS) onStatsShown()
+        if (target == Tab.STORIES) onStoriesShown()
         val from = tab
         tab = target
         // v4.9.9: the old screen stays up while it slides out (see animateTabChange)
@@ -646,7 +689,6 @@ class MainActivity : AppCompatActivity() {
         }
         if (target == Tab.HOME) renderGreeting(animate = false)
         if (target != Tab.HOME) lifecycleScope.launch { refreshData() }
-        if (target == Tab.DISCOVER) loadDiscover(force = false)
         if (slide) animateTabChange(from, target) else stopTabTransition()
         // 5.5.2: the festival wallpaper fades in under Home and out for the other tabs
         syncThemeLayer(animate = slide)
@@ -657,21 +699,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun tabViewOf(row: TopRow, t: Tab): View = when (t) {
         Tab.HOME -> row.tabHome
-        Tab.DISCOVER -> row.tabDiscover
+        Tab.STORIES -> row.tabStories
         Tab.STATS -> row.tabStats
         Tab.LIBRARY -> row.tabLibrary
     }
 
     private fun lineOf(row: TopRow, t: Tab): View = when (t) {
         Tab.HOME -> row.lineHome
-        Tab.DISCOVER -> row.lineDiscover
+        Tab.STORIES -> row.lineStories
         Tab.STATS -> row.lineStats
         Tab.LIBRARY -> row.lineLibrary
     }
 
     private fun screenOf(t: Tab): View = when (t) {
         Tab.HOME -> screenHome
-        Tab.DISCOVER -> screenDiscover
+        Tab.STORIES -> screenStories
         Tab.STATS -> screenStats
         Tab.LIBRARY -> screenLibrary
     }
@@ -701,7 +743,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun topRowIdOf(t: Tab): Int = when (t) {
         Tab.HOME -> R.id.home_top
-        Tab.DISCOVER -> R.id.discover_top
+        Tab.STORIES -> R.id.stories_top
         Tab.STATS -> R.id.stats_top
         Tab.LIBRARY -> R.id.library_top
     }
@@ -962,6 +1004,8 @@ class MainActivity : AppCompatActivity() {
                     isListOpen -> closeList()
                     isShelfOpen -> closeShelf()
                     isArtistOpen -> closeArtist()
+                    // 5.7.0 u46: a channel's list (from its photo or its shelf title) goes back to the shelves
+                    tab == Tab.STORIES && ::storiesScreen.isInitialized && storiesScreen.backToShelves() -> Unit
                     tab != Tab.HOME -> showTab(Tab.HOME)
                     else -> {
                         isEnabled = false
@@ -1168,41 +1212,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupScreenGestures() {
-        // Swipe up: Home -> Discover (v4.3.1, was Recents). v4.9.8: does nothing on Now Playing
-        // (lyrics open from the lyric line, Up next from its pill).
-        screenGestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                val start = e1 ?: return false
-                if (isSeeking) return false
-                val dy = e2.y - start.y
-                val dx = e2.x - start.x
-                val isSwipeUp = dy < -dp(70f) && abs(dy) > abs(dx) * 1.5f && abs(velocityY) > 500f
-                if (!isSwipeUp) return false
-                if (isWelcomeOpen) return false
-                // 5.5.0: a swipe up on the Home mini player opens Now Playing, not Discover
-                if (downOnMiniPill || (::npMorph.isInitialized && npMorph.isActive)) return false
-                // 5.3.0: a swipe on the Gemini chat only moves the chat, open or still closing
-                if (!discoverSwipeGate.allows(isGeminiShowing)) return false
-                if (recapStory != null || recapStoryOpening) return false
-                if (::sheetRoot.isInitialized && sheetRoot.visibility == View.VISIBLE) return false
-                when {
-                    isSettingsOpen || isQueueOpen || isLyricsOpen || isNowPlayingOpen -> return false
-                    isSearchOpen || isListOpen || isShelfOpen || isArtistOpen -> return false
-                    tab == Tab.HOME -> switchTabByHand(homeHint, Tab.DISCOVER)
-                    else -> return false
-                }
-                return true
-            }
-        })
-    }
-
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (showingCrashReport) return super.dispatchTouchEvent(ev)
         if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-            discoverSwipeGate.onDown(isGeminiShowing)
             downOnMiniPill = isTouchOn(homeMini.root, ev) || isTouchOn(floatMini.root, ev)
         }
-        screenGestures?.onTouchEvent(ev)
         // 5.5.0: swiping down on Now Playing shrinks it back into the mini player by the finger
         // 5.5.1: dragging the Up Next sheet down springs it back into its pill
         if (handleQueueSwipe(ev)) return true
@@ -1229,11 +1243,14 @@ class MainActivity : AppCompatActivity() {
         setupTakeover()
         setupTheme()
         homeSearch.setOnClickListener { openSearch(it) }
-        // The tip opens what it talks about: Discover for the swipe-up and Discover tips, Settings for Settings tips
+        // The tip opens what it talks about: Search for the picked-songs tips (5.7.0: Discover's
+        // shelves live there now), Settings for Settings tips
         homeHint.setOnClickListener {
             when {
-                tipIndex == Tips.SWIPE_UP_DISCOVER -> switchTabByHand(it, Tab.DISCOVER)
-                tipIndex == Tips.OPEN_DISCOVER -> switchTabByHand(it, Tab.DISCOVER)
+                tipIndex == Tips.SEARCH_PICKS || tipIndex == Tips.OPEN_PICKS -> {
+                    haptic(it)
+                    openSearch(homeSearch)
+                }
                 tipIndex in Tips.settingsTips -> openSettings()
             }
         }
@@ -1268,7 +1285,7 @@ class MainActivity : AppCompatActivity() {
         haptic(v, HapticFeedbackConstants.CONTEXT_CLICK)
         lifecycleScope.launch {
             val liked = try {
-                app.database.getLikedTracks()
+                app.database.getLikedSongs()
             } catch (_: Exception) {
                 emptyList()
             }
@@ -1597,7 +1614,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * The Home pill wraps its content: at least [PILL_MIN_DP] wide so short titles don't look tiny,
-     * at most 85% of the screen (then the title/artist scroll). Width changes glide over 250 ms.
+     * at most the screen less [MiniPill.SIDE_MARGIN_DP] a side (then the title/artist scroll). Width changes glide over 250 ms.
      */
     private fun fitHomePill(animate: Boolean) {
         val m = homeMini
@@ -1610,9 +1627,9 @@ class MainActivity : AppCompatActivity() {
             m.title.paint.measureText(textFade.target(m.title).toString()),
             m.artist.paint.measureText(textFade.target(m.artist).toString())
         )
-        val maxW = metrics.widthPixels * 0.85f
-        val minW = minOf(PILL_MIN_DP * d, maxW)
-        val target = (fixed + textW + 4 * d).coerceIn(minW, maxW).roundToInt()
+        // 5.7.0 u45: at most the screen less MiniPill.SIDE_MARGIN_DP on each side (was 85% of it),
+        // the same clear space the floating pill keeps from the edges
+        val target = MiniPill.homeWidth(fixed + textW + 4 * d, metrics.widthPixels, d, PILL_MIN_DP)
         val lp = m.root.layoutParams
         val current = if (lp.width > 0) lp.width else m.root.width
         pillWidthAnimator?.cancel()
@@ -1649,6 +1666,8 @@ class MainActivity : AppCompatActivity() {
     // ==========================================================================================
 
     private fun setupSearch() {
+        searchDiscover = findViewById(R.id.search_discover)
+        searchResultsList = findViewById(R.id.search_results)
         searchAdapter = SearchResultsAdapter(
             artwork = app.artworkPipeline,
             onClick = { track, list -> app.playbackController.playRadio(track, list) },
@@ -1679,8 +1698,10 @@ class MainActivity : AppCompatActivity() {
                 searchDebounce?.cancel()
                 if (query.isEmpty()) {
                     clearSearchResults()
+                    setSearchTyping(false)
                     return
                 }
+                setSearchTyping(true)
                 if (query == lastQuery) return
                 searchDebounce = lifecycleScope.launch {
                     delay(SEARCH_DEBOUNCE_MS)
@@ -1718,6 +1739,10 @@ class MainActivity : AppCompatActivity() {
      * The focus and keyboard start with the morph so the keyboard rises in step.
      */
     private fun openSearch(source: View? = null) {
+        setSearchTyping(searchInput.text?.toString()?.trim().orEmpty().isNotEmpty())
+        // 5.7.0: Discover's shelves live here now: show the saved ones, refresh when stale
+        loadDiscover(force = false)
+        loadSearchExtras()
         searchMorph.open(source) {
             updateChrome()
             searchInput.requestFocus()
@@ -1748,6 +1773,7 @@ class MainActivity : AppCompatActivity() {
             go = findViewById(R.id.search_go),
             results = findViewById(R.id.search_results),
             status = searchStatus,
+            discover = searchDiscover,
             colors = { pal.fg to pal.bg },
             animationsOn = { ValueAnimator.areAnimatorsEnabled() }
         )
@@ -1882,6 +1908,10 @@ class MainActivity : AppCompatActivity() {
             adapter = listAdapter
             listEntrance = RowEntrance(this)
         }
+        // 5.7.0 u48: Liked > Artists swaps this in; tapping a row opens the Artist page
+        likedArtistAdapter = com.minim.music.ui.adapter.LikedArtistAdapter(app.artworkPipeline) { a ->
+            openArtist(a.toRef(), fromSearch = false)
+        }
     }
 
     // ---- v4.3 Discover ---------------------------------------------------------------------------
@@ -1900,15 +1930,30 @@ class MainActivity : AppCompatActivity() {
             artwork = app.artworkPipeline,
             onOpenShelf = { shelf -> openShelfPage(shelf) },
             onSongClick = { track, shelf -> app.playbackController.playRadio(track, shelf.tracks) },
-            onSongLongClick = { anchor, track -> showTrackOptions(anchor, track, fromDiscover = true) }
+            onSongLongClick = { anchor, track -> showTrackOptions(anchor, track, fromDiscover = true) },
+            onArtistClick = { name -> openArtistByName(name) },
+            artistPhoto = { name -> app.preferences.artistPhoto(name) },
+            onArtistPhotoNeeded = { name -> findShelfArtistPhoto(name) }
         )
         findViewById<RecyclerView>(R.id.discover_shelves).apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = shelfAdapter
             itemAnimator = null
             discoverEntrance = RowEntrance(this)
+            // 5.7.0: on the Search page, scrolling the shelves puts the keyboard away
+            addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING && searchInput.hasFocus()) {
+                        hideKeyboard()
+                        searchInput.clearFocus()
+                    }
+                }
+            })
         }
-        discoverRefresh.setOnRefreshListener { loadDiscover(force = true) }
+        discoverRefresh.setOnRefreshListener {
+            loadDiscover(force = true)
+            loadSearchExtras()
+        }
         discoverMessage.setOnClickListener {
             if (discoverHasError) {
                 haptic(it)
@@ -1982,13 +2027,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDiscover(s: com.minim.music.data.discover.DiscoverSnapshot, afterBuild: Boolean) {
-        // v4.9.9: a new set of shelves rises in; the same shelves with a song less ("not
-        // interested") or fresher songs just update in place
-        val newSet = s.shelves.map { it.key } != discoverShelves.map { it.key }
         discoverShelves = s.shelves
-        shelfAdapter.submit(s.shelves)
-        shelfAdapter.setActiveTrack(app.playbackController.uiState.value.currentTrack?.id)
-        if (newSet && s.shelves.isNotEmpty()) discoverEntrance.play()
+        renderSearchShelves()
         when {
             s.shelves.isNotEmpty() -> {
                 discoverHasError = false
@@ -2001,9 +2041,138 @@ class MainActivity : AppCompatActivity() {
             else -> showDiscoverWelcome(thin = true)
         }
         // An open shelf page follows its shelf (it may have lost a "not interested" song)
-        openShelf?.takeIf { !it.key.startsWith(ARTIST_SHELF) }?.let { open ->
+        openShelf?.takeIf { !it.key.startsWith(ARTIST_SHELF) && it.key != GEMINI_SHELF }?.let { open ->
             val updated = s.shelves.firstOrNull { it.key == open.key }
             if (updated == null) closeShelf() else if (updated != open) fillShelfPage(updated)
+        }
+    }
+
+    // ---- 5.7.0 Search page shelves ---------------------------------------------------------------
+
+    /** The user's top artists (round photos at the top of the Search page). */
+    private var searchTopArtists: List<String> = emptyList()
+    /** Today's Gemini shelf, with the title Gemini wrote for it. */
+    private var geminiShelf: com.minim.music.data.discover.Shelf? = null
+    private var searchExtrasJob: kotlinx.coroutines.Job? = null
+    /** The shelf keys on screen, so a new set rises in and a changed one just updates. */
+    private var shownShelfKeys: List<String> = emptyList()
+
+    /**
+     * What the Search page shows while the box is empty: your top artists, the Gemini shelf,
+     * then Discover's shelves. The two extras only show alongside Discover's shelves, so the
+     * "play a few songs" and error messages never sit over them.
+     */
+    private fun renderSearchShelves() {
+        val hidden = app.database.notInterestedIds.value
+        val list = buildSearchShelves(
+            discoverShelves, searchTopArtists,
+            geminiShelf?.let { g -> g.copy(tracks = g.tracks.filter { it.id !in hidden }) },
+            getString(R.string.shelf_top_artists)
+        )
+        val keys = list.map { it.key }
+        val newSet = keys != shownShelfKeys
+        shownShelfKeys = keys
+        shelfAdapter.submit(list)
+        shelfAdapter.setActiveTrack(app.playbackController.uiState.value.currentTrack?.id)
+        // v4.9.9: a new set of shelves rises in; the same shelves with a song less ("not
+        // interested") or fresher songs just update in place
+        if (newSet && list.isNotEmpty() && isSearchOpen && !isSearchTyping) discoverEntrance.play()
+    }
+
+    /** Works out the top artists and today's Gemini shelf, then redraws the shelves. */
+    private fun loadSearchExtras() {
+        if (searchExtrasJob?.isActive == true) return
+        searchExtrasJob = lifecycleScope.launch {
+            val engine = app.discoverEngine
+            val artists = try { engine.topArtists() } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) { searchTopArtists }
+            if (artists != searchTopArtists) {
+                searchTopArtists = artists
+                renderSearchShelves()
+            }
+            val maker = app.geminiShelfMaker
+            val settings = app.geminiSettings
+            val ctx = applicationContext
+            val keyHash = withContext(Dispatchers.IO) {
+                com.minim.music.data.ai.GeminiShelfMaker.keyHash(settings.apiKey().orEmpty(), settings.model)
+            }
+            val today = java.time.LocalDate.now().toEpochDay()
+            // Yesterday's shelf stays up while today's is made
+            if (geminiShelf == null) maker.saved()?.let { showGeminiShelf(it) }
+            if (!maker.isStale(maker.saved(), today, keyHash)) return@launch
+            if (!settings.hasApiKey && !com.minim.music.data.ai.GeminiRoute.hasBuiltIn(ctx)) return@launch
+            val made = maker.today(
+                today = today,
+                keyHash = keyHash,
+                taste = {
+                    withContext(Dispatchers.IO) {
+                        val stats = app.database.getAllTrackStats()
+                        com.minim.music.data.ai.GeminiShelfPrompt.taste(
+                            stats, engine.topArtists(8), app.database.notInterestedIds.value
+                        )
+                    }
+                },
+                endpoint = { com.minim.music.data.ai.GeminiRoute.endpoint(ctx, settings) },
+                find = { pick -> findGeminiPick(pick) },
+                skip = { t -> t.id in app.database.notInterestedIds.value }
+            )
+            if (made != null) showGeminiShelf(made)
+        }
+    }
+
+    private fun showGeminiShelf(d: com.minim.music.data.ai.GeminiShelfDay) {
+        val shelf = com.minim.music.data.discover.Shelf(GEMINI_SHELF, d.title, d.tracks)
+        if (shelf == geminiShelf) return
+        geminiShelf = shelf
+        renderSearchShelves()
+        // An open Gemini shelf page follows the new shelf
+        if (openShelf?.key == GEMINI_SHELF) fillShelfPage(shelf)
+    }
+
+    /** One Gemini pick -> the YouTube Music song, only when the import's matcher is sure of it. */
+    private suspend fun findGeminiPick(pick: com.minim.music.data.ai.GeminiPick): Track? {
+        val query = if (pick.artist.isBlank()) pick.title else "${pick.title} ${pick.artist}"
+        val found = app.sourceAdapter.searchForImport(query, videos = false) ?: return null
+        val song = com.minim.music.data.importer.SourceSong(
+            pick.title, if (pick.artist.isBlank()) emptyList() else listOf(pick.artist)
+        )
+        val m = com.minim.music.data.importer.SongMatcher.match(song, found)
+        return if (m.confidence == com.minim.music.data.importer.Confidence.SURE) m.best?.track else null
+    }
+
+    /** A top artist without a saved photo: found like the Artist page finds it, then saved. */
+    private fun findShelfArtistPhoto(name: String) {
+        if (!artistPhotoTried.add(name.lowercase())) return
+        lifecycleScope.launch {
+            val found = try { app.sourceAdapter.findArtist(name) } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) { null }
+            val ref = (found as? SourceResult.Success)?.data ?: return@launch
+            val url = MusicSourceAdapter.upscaleYtImage(ref.thumbnailUrl, 600)
+            if (url.isBlank()) return@launch
+            app.preferences.setArtistPhoto(name, url)
+            if (name in searchTopArtists) renderSearchShelves()
+        }
+    }
+
+    /** True while the Search box has text: results show and the shelves are hidden. */
+    private var isSearchTyping = false
+    private lateinit var searchDiscover: View
+    private lateinit var searchResultsList: View
+
+    /** Typing hides the shelves and shows results; an empty box brings the shelves back. */
+    private fun setSearchTyping(typing: Boolean) {
+        if (typing == isSearchTyping) return
+        isSearchTyping = typing
+        searchDiscover.visibility = if (typing) View.GONE else View.VISIBLE
+        searchResultsList.visibility = if (typing) View.VISIBLE else View.GONE
+        if (!typing) {
+            searchStatus.visibility = View.GONE
+            if (animationsOn() && isSearchOpen) {
+                searchDiscover.alpha = 0f
+                searchDiscover.animate().alpha(1f).setDuration(180L).start()
+            }
         }
     }
 
@@ -2025,7 +2194,15 @@ class MainActivity : AppCompatActivity() {
         discoverWelcome.visibility = View.VISIBLE
     }
 
-    private fun openShelfPage(shelf: com.minim.music.data.discover.Shelf) {
+    /**
+     * 5.7.0: a shelf opened from the Search page closes Search (the shelf page sits under it,
+     * like the Artist page) and Back brings Search back with the shelves where they were.
+     */
+    private var shelfFromSearch = false
+
+    private fun openShelfPage(shelf: com.minim.music.data.discover.Shelf, fromSearch: Boolean = isSearchOpen) {
+        if (isSearchOpen) closeSearch()
+        shelfFromSearch = fromSearch
         fillShelfPage(shelf)
         findViewById<RecyclerView>(R.id.shelf_grid).scrollToPosition(0)
         shelfGridEntrance.play()
@@ -2056,12 +2233,15 @@ class MainActivity : AppCompatActivity() {
         shelfGridAdapter.setActiveTrack(app.playbackController.uiState.value.currentTrack?.id)
     }
 
-    private fun closeShelf() {
+    private fun closeShelf(backToSearch: Boolean = true) {
         openShelf = null
+        val toSearch = shelfFromSearch && backToSearch
+        shelfFromSearch = false
         screenShelf.animate().cancel()
         screenShelf.alpha = 1f
         screenShelf.translationX = 0f
         screenShelf.visibility = View.GONE
+        if (toSearch) screenSearch.visibility = View.VISIBLE
         updateChrome()
     }
 
@@ -2073,7 +2253,9 @@ class MainActivity : AppCompatActivity() {
         val listId: Long?,
         val listName: String,
         val shelf: com.minim.music.data.discover.Shelf?,
-        val listSource: String? = null
+        val listSource: String? = null,
+        /** u48: Back to Liked > Artists lands on Artists again, not Songs. */
+        val listKind: com.minim.music.data.stories.LibraryKind = com.minim.music.data.stories.LibraryKind.SONGS
     )
 
     private lateinit var artistHeader: SquareFrameLayout
@@ -2086,6 +2268,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var artistName: TextView
     private lateinit var artistSubs: TextView
     private lateinit var artistShuffle: TextView
+    private lateinit var artistLike: ImageView
     private lateinit var artistMessage: TextView
     private lateinit var artistScroll: ScrollView
     private lateinit var artistSongsShelf: View
@@ -2137,6 +2320,9 @@ class MainActivity : AppCompatActivity() {
         artistName = findViewById(R.id.artist_name)
         artistSubs = findViewById(R.id.artist_subs)
         artistShuffle = findViewById(R.id.artist_shuffle)
+        artistLike = findViewById(R.id.artist_like)
+        // 5.7.0 u48/u50: the Artist page heart gets the same ink, spring and burst as the others
+        if (::heartFx.isInitialized) heartFx.attach(artistLike)
         artistMessage = findViewById(R.id.artist_message)
         artistScroll = findViewById(R.id.artist_scroll)
         artistSongsShelf = findViewById(R.id.artist_songs_shelf)
@@ -2189,7 +2375,13 @@ class MainActivity : AppCompatActivity() {
             haptic(it)
             openSearch(it)
         }
+        artistLike.setOnClickListener { tapArtistHeart(it as ImageView) }
         artistShuffle.setOnClickListener {
+            if (channelMode != null) {
+                haptic(it)
+                toggleFollowChannel()
+                return@setOnClickListener
+            }
             val songs = artistPage?.songs.orEmpty()
             if (songs.isEmpty()) return@setOnClickListener
             haptic(it)
@@ -2218,7 +2410,17 @@ class MainActivity : AppCompatActivity() {
 
         // Now Playing: tap the artist name to open their page
         npArtist.setOnClickListener {
-            val line = app.playbackController.uiState.value.currentTrack?.artist ?: return@setOnClickListener
+            val current = app.playbackController.uiState.value.currentTrack ?: return@setOnClickListener
+            // 5.7.0 u47: a tape's channel name opens its Channel page
+            if (com.minim.music.data.stories.StoryTracks.isStory(current)) {
+                val ch = com.minim.music.data.stories.ChannelVideos.channelFor(current, app.storiesStore.channels)
+                    ?: return@setOnClickListener
+                haptic(it)
+                collapseNowPlaying()
+                openChannelPage(ch)
+                return@setOnClickListener
+            }
+            val line = current.artist
             if (MusicSourceAdapter.firstArtistName(line).isBlank()) return@setOnClickListener
             haptic(it)
             collapseNowPlaying()
@@ -2237,8 +2439,12 @@ class MainActivity : AppCompatActivity() {
 
     /** Opens the page for an artist from Search. */
     private fun openArtist(ref: ArtistRef, fromSearch: Boolean) {
+        leaveChannelMode()
         showArtistScreen(fromSearch)
-        if (artistPage?.url == ref.url && !artistHasError) return
+        if (artistPage?.url == ref.url && !artistHasError) {
+            updateArtistHeart(animate = false)
+            return
+        }
         artistLookupName = null
         artistRef = ref
         artistPage = null
@@ -2251,12 +2457,16 @@ class MainActivity : AppCompatActivity() {
     /** Opens the page for the artist line on Now Playing ("Arijit Singh, Pritam" -> Arijit Singh). */
     private fun openArtistByName(line: String) {
         if (isGeminiOpen) geminiChat.close()
+        leaveChannelMode()
         val name = MusicSourceAdapter.firstArtistName(line)
         showArtistScreen(fromSearch = false)
         val shown = artistPage
         if (shown != null && !artistHasError &&
             MusicSourceAdapter.normName(shown.name) == MusicSourceAdapter.normName(name)
-        ) return
+        ) {
+            updateArtistHeart(animate = false)
+            return
+        }
         artistRef = null
         artistPage = null
         artistScroll.scrollTo(0, 0)
@@ -2307,12 +2517,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showArtistPage(page: ArtistPage) {
+        if (channelMode != null) return
         // v4.9.9: the shelves' songs and albums rise in when the page loads, not on a redraw
         val previous = artistPage
         val newSongs = previous == null || previous.songs != page.songs
         val newAlbums = previous == null || previous.albums != page.albums
         artistPage = page
         showArtistHeader(page.name, formatArtistCount(resources, page.count, page.countKind), page.photoUrl)
+        // u48: a liked artist keeps the freshest photo and count for Liked > Artists
+        likeRefForArtist()?.let { app.likedArtists.refresh(it) }
         val active = app.playbackController.uiState.value.currentTrack?.id
         if (page.songs.isNotEmpty()) {
             artistSongs.bind(
@@ -2349,7 +2562,7 @@ class MainActivity : AppCompatActivity() {
     private fun hideArtistShelves() {
         artistSongsShelf.visibility = View.GONE
         artistAlbumsShelf.visibility = View.GONE
-        artistShuffle.visibility = View.GONE
+        artistShuffle.visibility = if (channelMode != null) View.VISIBLE else View.GONE
     }
 
     private fun setArtistMessage(text: String, error: Boolean) {
@@ -2362,7 +2575,8 @@ class MainActivity : AppCompatActivity() {
     private fun showArtistHeader(name: String, subs: String, photoUrl: String) {
         artistName.text = name
         artistSubs.text = subs
-        artistShuffle.contentDescription = getString(R.string.artist_shuffle_desc)
+        artistShuffle.contentDescription = if (channelMode != null) artistShuffle.text else getString(R.string.artist_shuffle_desc)
+        updateArtistHeart(animate = false)
         val url = photoUrl.trim()
         if (url == artistPhotoUrl && (artistHasPhoto || url.isEmpty())) return
         if (url.isEmpty()) {
@@ -2738,6 +2952,8 @@ class MainActivity : AppCompatActivity() {
             artistSubs.setTextColor(androidx.core.graphics.ColorUtils.setAlphaComponent(lightTone, 0xDD))
             pill(artistShuffle, lightTone)
             artistShuffle.setTextColor(darkTone)
+            pill(artistLike, lightTone)
+            artistLike.imageTintList = android.content.res.ColorStateList.valueOf(darkTone)
         } else {
             pill(artistHeader, p.fg)
             artistFade.visibility = View.GONE
@@ -2752,23 +2968,69 @@ class MainActivity : AppCompatActivity() {
             artistSubs.setTextColor(androidx.core.graphics.ColorUtils.setAlphaComponent(p.bg, 0xDD))
             pill(artistShuffle, p.bg)
             artistShuffle.setTextColor(p.fg)
+            pill(artistLike, p.bg)
+            artistLike.imageTintList = android.content.res.ColorStateList.valueOf(p.fg)
         }
+    }
+
+    // ---- 5.7.0 u48: like an artist -------------------------------------------------------------------
+
+    /**
+     * The artist on the page as it should be saved: the link it was opened with (so the key stays
+     * the same), with the loaded page's name, photo and count when they're in. Null on a Channel
+     * page or while the artist is still being looked up.
+     */
+    private fun likeRefForArtist(): ArtistRef? {
+        if (channelMode != null) return null
+        val ref = artistRef ?: return null
+        val page = artistPage ?: return ref
+        return ArtistRef(
+            url = ref.url,
+            name = page.name.ifBlank { ref.name },
+            count = if (page.count >= 0) page.count else ref.count,
+            thumbnailUrl = page.photoUrl.ifBlank { ref.thumbnailUrl },
+            countKind = if (page.count >= 0) page.countKind else ref.countKind
+        )
+    }
+
+    /** Shows the heart (filled when liked) once the artist is known; hidden on Channel pages. */
+    private fun updateArtistHeart(animate: Boolean) {
+        if (!::artistLike.isInitialized) return
+        val ref = likeRefForArtist()
+        if (ref == null) {
+            artistLike.visibility = View.GONE
+            return
+        }
+        val liked = app.likedArtists.isLiked(ref)
+        artistLike.visibility = View.VISIBLE
+        artistLike.contentDescription = getString(if (liked) R.string.artist_unlike_cd else R.string.artist_like_cd, ref.name)
+        if (::heartFx.isInitialized) heartFx.setLiked(artistLike, liked, animate)
+    }
+
+    private fun tapArtistHeart(view: ImageView) {
+        val ref = likeRefForArtist() ?: return
+        val liked = app.likedArtists.toggle(ref)
+        heartFx.play(view, liked, heartBurstColor())
+        heartHaptic(view, liked)
+        view.contentDescription = getString(if (liked) R.string.artist_unlike_cd else R.string.artist_like_cd, ref.name)
+        view.announceForAccessibility(getString(if (liked) R.string.artist_liked_note else R.string.artist_unliked_note, ref.name))
     }
 
     private fun showArtistScreen(fromSearch: Boolean) {
         if (!isArtistOpen) {
             artistReturn = ArtistReturn(
-                search = fromSearch || isSearchOpen,
+                search = fromSearch || isSearchOpen || (isShelfOpen && shelfFromSearch),
                 listId = if (isListOpen) openListId else null,
                 listName = openListName,
                 listSource = openListSource,
+                listKind = listKind,
                 shelf = if (isShelfOpen) openShelf?.takeIf { !it.key.startsWith(ARTIST_SHELF) } else null
             )
         }
         // The Artist page sits under Search, the song list and the shelf grid: close them
         if (isSearchOpen) closeSearch()
         if (isListOpen) closeList()
-        if (isShelfOpen) closeShelf()
+        if (isShelfOpen) closeShelf(backToSearch = false)
         if (!isArtistOpen) {
             screenArtist.visibility = View.VISIBLE
             if (animationsOn()) {
@@ -2783,6 +3045,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun closeArtist() {
         artistJob?.cancel()
+        if (channelFailed) channelMode = null
         screenArtist.animate().cancel()
         screenArtist.alpha = 1f
         screenArtist.translationX = 0f
@@ -2794,11 +3057,187 @@ class MainActivity : AppCompatActivity() {
             artistPage = null
         }
         if (back != null) {
-            back.shelf?.let { openShelfPage(it) }
-            back.listId?.let { openList(it, back.listName, back.listSource) }
-            if (back.search) screenSearch.visibility = View.VISIBLE
+            back.shelf?.let { openShelfPage(it, fromSearch = back.search) }
+            back.listId?.let { openList(it, back.listName, back.listSource, back.listKind) }
+            if (back.search && back.shelf == null) screenSearch.visibility = View.VISIBLE
         }
         updateChrome()
+    }
+
+    // ---- 5.7.0 u47: Channel pages, on the Artist page's screen ------------------------------------
+
+    /** The channel shown on the Artist screen, or null while it shows an artist. */
+    private var channelMode: com.minim.music.data.stories.StoryChannel? = null
+    private var channelData: com.minim.music.data.source.MusicSourceAdapter.ChannelPageData? = null
+    private var channelSort = com.minim.music.data.stories.ChannelSort.LATEST
+    private var channelPopular: List<com.minim.music.data.stories.StoryUpload>? = null
+    private var channelLoadingMore = false
+    private var channelFailed = false
+    private var channelJob: kotlinx.coroutines.Job? = null
+    private lateinit var channelVideos: com.minim.music.ui.adapter.ChannelVideosAdapter
+    private var channelSetUp = false
+
+    private fun setupChannelPage() {
+        if (channelSetUp) return
+        channelSetUp = true
+        channelVideos = com.minim.music.ui.adapter.ChannelVideosAdapter(
+            app.artworkPipeline,
+            onUpload = { track, all -> storiesScreen.play(track, all) },
+            onUploadLong = { anchor, track -> showTrackOptions(anchor, track) },
+            meta = { u -> storiesScreen.pageMeta(u) }
+        )
+        val list = findViewById<RecyclerView>(R.id.channel_videos)
+        list.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        list.adapter = channelVideos
+        list.itemAnimator = null
+        findViewById<TextView>(R.id.channel_sort_latest).setOnClickListener { setChannelSort(it, com.minim.music.data.stories.ChannelSort.LATEST) }
+        findViewById<TextView>(R.id.channel_sort_popular).setOnClickListener { setChannelSort(it, com.minim.music.data.stories.ChannelSort.POPULAR) }
+        findViewById<TextView>(R.id.channel_note).setOnClickListener {
+            val c = channelMode ?: return@setOnClickListener
+            if (!channelFailed) return@setOnClickListener
+            haptic(it)
+            loadChannel(c)
+        }
+    }
+
+    /** Opens a channel's page: from its photo on tapes, from Now Playing, or from a tape's menu. */
+    private fun openChannelPage(c: com.minim.music.data.stories.StoryChannel) {
+        setupChannelPage()
+        if (isGeminiOpen) geminiChat.close()
+        showArtistScreen(fromSearch = false)
+        findViewById<View>(R.id.channel_block).visibility = View.VISIBLE
+        hideArtistShelves()
+        if (channelMode?.id == c.id && channelData != null && !channelFailed) {
+            artistMessage.visibility = View.GONE
+            renderChannel()
+            return
+        }
+        artistJob?.cancel()
+        artistRef = null
+        artistPage = null
+        artistLookupName = null
+        artistHasError = false
+        artistMessage.visibility = View.GONE
+        channelMode = c
+        channelData = null
+        channelPopular = null
+        channelSort = com.minim.music.data.stories.ChannelSort.LATEST
+        artistScroll.scrollTo(0, 0)
+        showArtistHeader(c.name, getString(R.string.channel_label), MusicSourceAdapter.upscaleYtImage(c.avatarUrl))
+        channelVideos.submit(emptyList(), emptyMap())
+        renderChannel()
+        loadChannel(c)
+    }
+
+    /** An artist opens on the same screen: the channel steps aside. */
+    private fun leaveChannelMode() {
+        if (channelMode == null) return
+        channelJob?.cancel()
+        channelMode = null
+        channelData = null
+        channelPopular = null
+        findViewById<View>(R.id.channel_block).visibility = View.GONE
+        artistShuffle.text = getString(R.string.artist_shuffle)
+        artistPhotoUrl = null
+    }
+
+    private fun loadChannel(c: com.minim.music.data.stories.StoryChannel) {
+        channelJob?.cancel()
+        channelFailed = false
+        channelLoadingMore = false
+        renderChannel()
+        channelJob = lifecycleScope.launch {
+            val data = app.sourceAdapter.fetchChannelPage(c)
+            if (channelMode?.id != c.id) return@launch
+            if (data == null) {
+                channelFailed = true
+                renderChannel()
+                return@launch
+            }
+            channelData = data
+            // the channel row keeps its photo current
+            if (app.storiesStore.channels.any { it.id == data.channel.id } && data.channel.avatarUrl.isNotBlank()) {
+                app.storiesStore.updateAvatar(data.channel.id, data.channel.avatarUrl)
+            }
+            showArtistHeader(
+                data.channel.name,
+                formatArtistCount(resources, data.subscriberCount, com.minim.music.data.model.ArtistCountKind.SUBSCRIBERS),
+                MusicSourceAdapter.upscaleYtImage(data.channel.avatarUrl)
+            )
+            renderChannel()
+            if (channelSort == com.minim.music.data.stories.ChannelSort.POPULAR) loadChannelPopular()
+        }
+    }
+
+    private fun setChannelSort(v: View, sort: com.minim.music.data.stories.ChannelSort) {
+        if (channelMode == null || channelSort == sort) return
+        haptic(v)
+        channelSort = sort
+        renderChannel()
+        if (sort == com.minim.music.data.stories.ChannelSort.POPULAR && channelPopular == null && channelData != null) loadChannelPopular()
+    }
+
+    /** Popular reads a few more pages of uploads and sorts them all by views. */
+    private fun loadChannelPopular() {
+        val data = channelData ?: return
+        if (channelLoadingMore) return
+        channelLoadingMore = true
+        renderChannel()
+        val id = data.channel.id
+        lifecycleScope.launch {
+            val more = app.sourceAdapter.fetchChannelMore(id, data.channel.name)
+            channelLoadingMore = false
+            if (channelMode == null || channelData?.channel?.id != id) return@launch
+            channelPopular = (data.latest + more.orEmpty()).distinctBy { it.videoId }
+            renderChannel()
+        }
+    }
+
+    private fun renderChannel() {
+        val c = channelMode ?: return
+        val followed = com.minim.music.data.stories.ChannelVideos.isFollowed(channelData?.channel?.id ?: c.id, c.name, app.storiesStore.channels)
+        artistShuffle.text = getString(if (followed) R.string.channel_following else R.string.channel_follow)
+        artistShuffle.contentDescription = artistShuffle.text
+        artistShuffle.visibility = View.VISIBLE
+        artistLike.visibility = View.GONE
+        ChipStyle.apply(findViewById(R.id.channel_sort_latest), channelSort == com.minim.music.data.stories.ChannelSort.LATEST, pal)
+        ChipStyle.apply(findViewById(R.id.channel_sort_popular), channelSort == com.minim.music.data.stories.ChannelSort.POPULAR, pal)
+        val data = channelData
+        val list = when {
+            data == null -> emptyList()
+            channelSort == com.minim.music.data.stories.ChannelSort.POPULAR ->
+                com.minim.music.data.stories.ChannelVideos.sort(channelPopular ?: if (channelLoadingMore) emptyList() else data.latest, channelSort)
+            else -> com.minim.music.data.stories.ChannelVideos.sort(data.latest, channelSort)
+        }
+        val note = findViewById<TextView>(R.id.channel_note)
+        val text = when {
+            channelFailed -> getString(R.string.channel_error)
+            data == null || (list.isEmpty() && channelLoadingMore) -> getString(R.string.channel_loading)
+            list.isEmpty() -> getString(R.string.channel_nothing)
+            else -> null
+        }
+        note.text = text
+        note.visibility = if (text == null) View.GONE else View.VISIBLE
+        channelVideos.setPalette(pal)
+        channelVideos.setActive(app.playbackController.uiState.value.currentTrack?.id)
+        channelVideos.submit(list, app.storyProgress.all())
+        Painter.paint(findViewById(R.id.channel_block), pal)
+    }
+
+    /** Follow / Following: adds the channel to the tapes row, or takes it out. */
+    private fun toggleFollowChannel() {
+        val c = channelMode ?: return
+        val ch = channelData?.channel ?: c
+        val store = app.storiesStore
+        if (com.minim.music.data.stories.ChannelVideos.isFollowed(ch.id, ch.name, store.channels)) {
+            store.remove(store.channels.firstOrNull { it.id == ch.id }?.id ?: ch.id)
+            showNote(getString(R.string.note_channel_unfollowed, ch.name))
+        } else {
+            store.add(ch)
+            showNote(getString(R.string.note_channel_followed, ch.name))
+        }
+        renderChannel()
+        if (::storiesScreen.isInitialized) storiesScreen.onChannelsChanged()
     }
 
     /** An album from the Artist page, in the playlist screen. */
@@ -2807,9 +3246,11 @@ class MainActivity : AppCompatActivity() {
         openListId = null
         openAlbum = album
         cancelRename()
+        styleListFilter()
         listTitle.text = album.title
         listSubtitle.text = album.subtitle
         updateListHeader()
+        showArtistRows(false)
         listAdapter.submitList(emptyList())
         findViewById<RecyclerView>(R.id.list_tracks).scrollToPosition(0)
         listEntrance.expect()
@@ -2853,22 +3294,33 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             app.database.markNotInterested(track)
             app.discoverEngine.hideTrack(track.id)?.let { showDiscover(it, afterBuild = false) }
+            // 5.7.0: the Gemini shelf drops it too
+            renderSearchShelves()
             showNote(getString(R.string.not_interested_done))
         }
     }
 
-    private fun openList(id: Long, name: String, source: String? = null) {
+    private fun openList(
+        id: Long,
+        name: String,
+        source: String? = null,
+        kind: com.minim.music.data.stories.LibraryKind? = null
+    ) {
         openListSource = source
         openAlbum = null
         albumJob?.cancel()
+        if (kind != null) listKind = kind
+        else if (openListId != id) listKind = com.minim.music.data.stories.LibraryKind.SONGS
         openListId = id
         openListName = name
         cancelRename()
         listTitle.text = name
         listSubtitle.text = ""
         updateListHeader()
+        showArtistRows(false)
         listAdapter.submitList(emptyList())
         listEmpty.visibility = View.GONE
+        styleListFilter()
         listEntrance.expect()
         screenList.visibility = View.VISIBLE
         updateChrome()
@@ -2883,6 +3335,7 @@ class MainActivity : AppCompatActivity() {
     private val isOwnPlaylistOpen get() = (openListId ?: -1L) >= 0L && openAlbum == null
 
     private fun setupListHeader() {
+        setupListFilter()
         listTitleEdit = findViewById(R.id.list_title_edit)
         listAddSongs = findViewById(R.id.list_add_songs)
         listSubtitleRow = findViewById(R.id.list_subtitle_row)
@@ -3092,7 +3545,7 @@ class MainActivity : AppCompatActivity() {
                     setStatus(null)
                     searchJob = lifecycleScope.launch {
                         val recent = app.database.getRecentTracks(12)
-                        val liked = app.database.getLikedTracks().take(30)
+                        val liked = app.database.getLikedSongs().take(30)
                         if (gen != generation) return@launch
                         if (recent.isEmpty() && liked.isEmpty()) {
                             setStatus(getString(R.string.add_songs_nothing_yet))
@@ -3152,6 +3605,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun closeList() {
         cancelRename()
+        showArtistRows(false)
         openListId = null
         openAlbum = null
         albumJob?.cancel()
@@ -3159,15 +3613,81 @@ class MainActivity : AppCompatActivity() {
         updateChrome()
     }
 
+    // ---- 5.7.0 u47: Liked and Offline show Songs or Tapes ------------------------------------------
+
+    private var listKind = com.minim.music.data.stories.LibraryKind.SONGS
+    private val listHasFilter get() = openAlbum == null && (openListId == LIKED_LIST || openListId == OFFLINE_LIST)
+
+    private fun setupListFilter() {
+        val songs = findViewById<TextView>(R.id.list_filter_songs)
+        val tapes = findViewById<TextView>(R.id.list_filter_tapes)
+        val artists = findViewById<TextView>(R.id.list_filter_artists)
+        for ((chip, kind) in listOf(songs to com.minim.music.data.stories.LibraryKind.SONGS, tapes to com.minim.music.data.stories.LibraryKind.TAPES, artists to com.minim.music.data.stories.LibraryKind.ARTISTS)) {
+            chip.setOnClickListener {
+                if (!listHasFilter || listKind == kind) return@setOnClickListener
+                if (kind == com.minim.music.data.stories.LibraryKind.ARTISTS && openListId != LIKED_LIST) return@setOnClickListener
+                haptic(it)
+                listKind = kind
+                styleListFilter()
+                findViewById<RecyclerView>(R.id.list_tracks).scrollToPosition(0)
+                lifecycleScope.launch { refreshOpenList() }
+            }
+        }
+    }
+
+    private fun styleListFilter() {
+        val row = findViewById<View>(R.id.list_filter_row) ?: return
+        row.visibility = if (listHasFilter) View.VISIBLE else View.GONE
+        if (!listHasFilter) return
+        ChipStyle.apply(findViewById(R.id.list_filter_songs), listKind == com.minim.music.data.stories.LibraryKind.SONGS, pal)
+        ChipStyle.apply(findViewById(R.id.list_filter_tapes), listKind == com.minim.music.data.stories.LibraryKind.TAPES, pal)
+        // 5.7.0 u48: Artists only on Liked (Offline has no artists)
+        val artists = findViewById<TextView>(R.id.list_filter_artists)
+        artists.visibility = if (openListId == LIKED_LIST) View.VISIBLE else View.GONE
+        ChipStyle.apply(artists, listKind == com.minim.music.data.stories.LibraryKind.ARTISTS, pal)
+    }
+
+    /** 5.7.0 u48: the list shows song rows, or liked-artist rows on Liked > Artists. */
+    private fun showArtistRows(on: Boolean) {
+        if (!::likedArtistAdapter.isInitialized) return
+        val rv = findViewById<RecyclerView>(R.id.list_tracks)
+        val want: RecyclerView.Adapter<*> = if (on) likedArtistAdapter else listAdapter
+        if (rv.adapter !== want) rv.adapter = want
+    }
+
+    private val likedArtistsOpen get() =
+        openAlbum == null && openListId == LIKED_LIST && listKind == com.minim.music.data.stories.LibraryKind.ARTISTS
+
+    private fun artistCount(n: Int): String = resources.getQuantityString(R.plurals.artist_count, n, n)
+
+    private fun tapeCount(n: Int): String = resources.getQuantityString(R.plurals.tape_count, n, n)
+
     private suspend fun refreshOpenList() {
         val id = openListId ?: return
-        val tracks = when (id) {
+        // 5.7.0 u48: Liked > Artists, from the liked-artists store (no database read)
+        if (id == LIKED_LIST && listKind == com.minim.music.data.stories.LibraryKind.ARTISTS) {
+            val artists = app.likedArtists.artists.value
+            styleListFilter()
+            showArtistRows(true)
+            likedArtistAdapter.submit(artists)
+            listEntrance.loaded(artists.size)
+            showListSubtitle(null, artistCount(artists.size))
+            listEmpty.text = getString(R.string.liked_empty_artists)
+            listEmpty.visibility = if (artists.isEmpty()) View.VISIBLE else View.GONE
+            return
+        }
+        showArtistRows(false)
+        val all = when (id) {
             LIKED_LIST -> app.database.getLikedTracks()
             RECENTS_LIST -> app.database.getRecentTracks(50)
             OFFLINE_LIST -> app.offlineStore.saved.value.map { it.track }
             else -> app.database.getPlaylistTracks(id)
         }
-        if (openListId != id) return
+        if (openListId != id || likedArtistsOpen) return
+        val filtered = id == LIKED_LIST || id == OFFLINE_LIST
+        val tracks = if (filtered) com.minim.music.data.stories.LibraryFilter.split(all, listKind) else all
+        val tapesOn = filtered && listKind == com.minim.music.data.stories.LibraryKind.TAPES
+        styleListFilter()
         listAdapter.submitList(tracks)
         // v4.9.9: rises in on opening; later refreshes (a like, a play) just update
         listEntrance.loaded(tracks.size)
@@ -3175,12 +3695,12 @@ class MainActivity : AppCompatActivity() {
         // 5.3.2: "from [logo] · 84 songs", the logo tinted with the app colour; a pasted list keeps words
         val origin = com.minim.music.data.importer.ImportOrigin.fromCode(openListSource)
             ?.takeIf { id >= 0L }
-        showListSubtitle(origin, songCount(tracks.size))
+        showListSubtitle(origin, if (tapesOn) tapeCount(tracks.size) else songCount(tracks.size))
         listEmpty.text = getString(
             when (id) {
-                LIKED_LIST -> R.string.liked_empty
+                LIKED_LIST -> if (tapesOn) R.string.liked_empty_tapes else R.string.liked_empty
+                OFFLINE_LIST -> if (tapesOn) R.string.offline_empty_tapes else R.string.offline_empty
                 RECENTS_LIST -> R.string.recents_empty
-                OFFLINE_LIST -> R.string.offline_empty
                 else -> R.string.playlist_empty
             }
         )
@@ -3258,6 +3778,24 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.np_more).setOnClickListener { v ->
             haptic(v)
             showNowPlayingMenu()
+        }
+        // 5.7.0 u46: CC (stories uploads only) opens their captions in Full Screen Lyrics
+        // 5.7.0 u47: the countdown opens the sleep timer; the download button saves the tape
+        findViewById<View>(R.id.np_sleep).setOnClickListener { v ->
+            haptic(v)
+            showSleepTimerSheet()
+        }
+        findViewById<View>(R.id.np_download).setOnClickListener { v ->
+            val track = app.playbackController.uiState.value.currentTrack ?: return@setOnClickListener
+            if (!com.minim.music.data.stories.StoryTracks.isStory(track)) return@setOnClickListener
+            haptic(v)
+            val on = app.offlineStore.isSaved(track.id) || app.offline.isSaving(track.id)
+            if (on) removeOffline(listOf(track.id)) else saveOffline(listOf(track))
+            renderNpDownload()
+        }
+        findViewById<View>(R.id.np_cc).setOnClickListener { v ->
+            haptic(v, HapticFeedbackConstants.KEYBOARD_TAP)
+            openFullscreenLyrics()
         }
         // v4.9.8: "Up Next" pill (was "swipe up for lyrics"; the long-press for Up next is gone)
         findViewById<View>(R.id.np_up_next).setOnClickListener { v ->
@@ -3376,6 +3914,9 @@ class MainActivity : AppCompatActivity() {
                 return wasPlaying
             }
             override fun seek(fraction: Float, finished: Boolean) = seekFromBar(fraction, finished, fsLyrics.bar)
+            override fun seekLabel(fraction: Float): String =
+                SeekMotion.label(SeekMotion.targetMs(fraction, app.playbackController.uiState.value.durationMs))
+            override fun edgeTick(v: View) = haptic(v, HapticFeedbackConstants.CLOCK_TICK)
             override fun seekToLyric(lineStartMs: Long) = seekToLyricLine(lineStartMs)
             override fun onChromeChanged() = applyFsLyricsChrome()
             override suspend fun savedTranslation(data: LyricsData): List<String?>? =
@@ -3518,8 +4059,9 @@ class MainActivity : AppCompatActivity() {
             val target = (fraction * durationMs).toLong()
             if (finished) {
                 isSeeking = false
-                if (source === npControls.progress) {
-                    // 5.5.0: a quick dip in the sound instead of a hard cut
+                if (source === npControls.progress || source === fsLyrics.bar) {
+                    // 5.5.0: a quick dip in the sound instead of a hard cut (5.7.0: from the
+                    // full screen lyrics bar too)
                     seekHoldTarget = target
                     seekHoldAt = android.os.SystemClock.uptimeMillis()
                     app.playbackController.seekToSmooth(target)
@@ -4102,17 +4644,6 @@ class MainActivity : AppCompatActivity() {
             setLyricsOffset(AppPreferences.LYRICS_OFFSET_DEFAULT)
         }
 
-        option(R.id.set_sleep_off) {
-            sleepChoice = 0
-            app.sleepTimerManager.cancelTimer()
-        }
-        for ((id, minutes) in listOf(R.id.set_sleep_15 to 15, R.id.set_sleep_30 to 30, R.id.set_sleep_60 to 60)) {
-            option(id) {
-                sleepChoice = minutes
-                app.sleepTimerManager.startTimer(minutes)
-            }
-        }
-
         findViewById<View>(R.id.set_offline_remove_all).setOnClickListener { confirmRemoveAllOffline() }
 
         findViewById<View>(R.id.set_clear_cache).setOnClickListener {
@@ -4244,10 +4775,6 @@ class MainActivity : AppCompatActivity() {
         sel(R.id.set_fade_4, p.crossfadeSeconds == 4)
         sel(R.id.set_haptics_on, p.hapticsEnabled)
         sel(R.id.set_haptics_off, !p.hapticsEnabled)
-        sel(R.id.set_sleep_off, sleepChoice == 0)
-        sel(R.id.set_sleep_15, sleepChoice == 15)
-        sel(R.id.set_sleep_30, sleepChoice == 30)
-        sel(R.id.set_sleep_60, sleepChoice == 60)
         renderLyricsOffset()
         renderGeminiSettings()
         Painter.paint(screenSettings, pal)
@@ -4303,6 +4830,7 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { app.playbackController.uiState.collect { renderPlayback(it) } }
                 launch { app.playbackController.lyricsState.collect { renderLyrics(it) } }
+                launch { app.playbackController.captionChoice.collect { renderCaptionPill(it) } }
                 // v4.9.6: update download progress / done / failed
                 launch { app.updates.state.collect { onUpdateFlowState(it) } }
                 launch { app.database.likedIds.collect { renderLikes(it); greetingFactsAt = 0L } }
@@ -4312,7 +4840,14 @@ class MainActivity : AppCompatActivity() {
                 launch {
                     kotlinx.coroutines.flow.combine(app.offlineStore.saved, app.offline.progress) { saved, progress ->
                         com.minim.music.ui.adapter.OfflineMarks(saved.mapTo(HashSet()) { it.track.id }, progress)
-                    }.collect { listAdapter.setOffline(it) }
+                    }.collect {
+                        listAdapter.setOffline(it)
+                        // 5.7.0 u47: tapes rows show saved ones too (not the running percentage)
+                        val savedOnly = com.minim.music.ui.adapter.OfflineMarks(it.saved, emptyMap())
+                        if (::storiesScreen.isInitialized) storiesScreen.setOffline(savedOnly)
+                        if (::channelVideos.isInitialized) channelVideos.offline = savedOnly
+                        renderNpDownload()
+                    }
                 }
                 launch {
                     kotlinx.coroutines.flow.combine(
@@ -4335,6 +4870,13 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 launch { app.offline.events.collect { onOfflineEvent(it) } }
+                // 5.7.0 u48: a heart on an Artist page updates Liked > Artists if it's showing
+                launch {
+                    app.likedArtists.artists.collect {
+                        if (isListOpen && likedArtistsOpen) refreshOpenList()
+                        if (isArtistOpen) updateArtistHeart(animate = true)
+                    }
+                }
                 // v4.3: a counted play (30+ s) can add a song to Recents
                 launch {
                     app.playbackController.playsVersion.collect {
@@ -4357,21 +4899,10 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 launch {
-                    app.sleepTimerManager.remainingTimeMs.collect { remainingMs ->
-                        if (remainingMs > 0L) {
-                            setSleepStatus.text = getString(
-                                R.string.sleep_status,
-                                ArtworkPipeline.formatDurationSec((remainingMs + 999L) / 1000L)
-                            )
-                            setSleepStatus.visibility = View.VISIBLE
-                        } else {
-                            setSleepStatus.visibility = View.GONE
-                            if (sleepChoice != 0) {
-                                sleepChoice = 0
-                                if (isSettingsOpen) renderSettingsOptions()
-                            }
-                        }
-                    }
+                    // 5.7.0 u47: the countdown in Now Playing's top left
+                    kotlinx.coroutines.flow.combine(
+                        app.sleepTimerManager.mode, app.sleepTimerManager.remainingTimeMs
+                    ) { m, ms -> m to ms }.collect { (m, ms) -> renderSleepCountdown(m, ms) }
                 }
                 launch {
                     while (isActive) {
@@ -4389,6 +4920,7 @@ class MainActivity : AppCompatActivity() {
         updateChrome()
         listAdapter.setActiveTrack(track?.id)
         searchAdapter.setActiveTrack(track?.id)
+        if (::storiesScreen.isInitialized) storiesScreen.setActiveTrack(track?.id)
         shelfAdapter.setActiveTrack(track?.id)
         shelfGridAdapter.setActiveTrack(track?.id)
         artistSongs.setActiveTrack(track?.id)
@@ -4397,6 +4929,8 @@ class MainActivity : AppCompatActivity() {
 
         if (track == null) {
             renderedTrackId = null
+            homeMini.sweep?.clear()
+            floatMini.sweep?.clear()
             if (isNowPlayingOpen || isLyricsOpen || isQueueOpen) {
                 closeQueue()
                 collapseNowPlaying()
@@ -4415,6 +4949,23 @@ class MainActivity : AppCompatActivity() {
         }
         textFade.set(npTitle, track.title, fadeText)
         textFade.set(npArtist, track.artist, fadeText)
+        // 5.7.0 u44: "You're listening to" for a stories upload, "You're vibing to" for songs
+        // (only the text changes while Now Playing is closed: its opening motion owns the alpha)
+        val vibe = getString(com.minim.music.data.stories.NowPlayingLabel.forTrack(track))
+        if (npVibing.text.toString() != vibe) {
+            if (isNowPlayingOpen) textFade.set(npVibing, vibe, fadeText) else npVibing.text = vibe
+        }
+        // 5.7.0 u46: the CC button and captions mode, for stories uploads only
+        val story = com.minim.music.data.stories.NowPlayingCaptions.showCcButton(track)
+        val ccVis = if (story) View.VISIBLE else View.GONE
+        val cc = findViewById<View>(R.id.np_cc)
+        if (cc.visibility != ccVis) cc.visibility = ccVis
+        renderNpDownload()
+        if (channelSetUp) channelVideos.setActive(track.id)
+        if (fsLyrics.captionsMode != story) {
+            fsLyrics.captionsMode = story
+            renderCaptionPill(app.playbackController.captionChoice.value)
+        }
         fsLyrics.onTrack(track.thumbnailUrl)
         // v4.9.8 part 4: a new song while Now Playing is open: get its full screen lyrics cover
         // ready now, so opening shows it at once (a no-op once loaded, or while that mode is open)
@@ -4437,6 +4988,14 @@ class MainActivity : AppCompatActivity() {
             // The new song is saved to Recents in the background; reload once it's there
             scheduleRefresh(800L)
         }
+        // 5.7.0 u48: the pills' fill sweep (songs and tapes; a new track slides back to zero)
+        val sweepSpeed = app.playbackController.playbackSpeed
+        for (mini in listOf(homeMini, floatMini)) {
+            mini.sweep?.setPlayback(
+                track.id, state.positionMs, state.durationMs,
+                state.isPlaying && !state.isBuffering, sweepSpeed
+            )
+        }
         // v4.9.8 part 4: play / pause reaches the Flow clock at once, not on the next tick
         if (state.isPlaying != renderedPlaying) {
             renderedPlaying = state.isPlaying
@@ -4454,7 +5013,6 @@ class MainActivity : AppCompatActivity() {
             Player.REPEAT_MODE_ALL -> R.string.repeat_all
             else -> R.string.repeat_off
         }
-        if (!isSeeking) fsLyrics.setProgress(if (state.durationMs > 0L) state.positionMs.toFloat() / state.durationMs else 0f)
         for (c in listOf(npControls)) {
             c.play.setText(playLabel)
             c.repeat.setImageResource(repeatIcon)
@@ -4469,6 +5027,11 @@ class MainActivity : AppCompatActivity() {
                 c.elapsed.text = ArtworkPipeline.formatDurationSec(state.positionMs / 1000L)
                 c.remaining.text = formatRemaining(state.durationMs, state.positionMs)
                 c.progress.setPlayback(
+                    state.positionMs, state.durationMs,
+                    state.isPlaying && !state.isBuffering, state.bufferedPositionMs
+                )
+                // 5.7.0: the full screen lyrics bar is the same animated bar now
+                fsLyrics.setPlayback(
                     state.positionMs, state.durationMs,
                     state.isPlaying && !state.isBuffering, state.bufferedPositionMs
                 )
@@ -4511,7 +5074,9 @@ class MainActivity : AppCompatActivity() {
         npLyricMode = NowPlayingLyricSlot.mode(data)
         applyNpLyricMode()
         // v4.9.9: the line view fades out the old song's line in place (instant when it can't be seen)
-        npLyric.setLyrics(data, getString(R.string.np_lyrics_unavailable), animate = true)
+        npLyric.setLyrics(data, getString(
+            if (com.minim.music.data.captions.CaptionLyrics.isCaptions(data)) R.string.captions_none else R.string.np_lyrics_unavailable
+        ), animate = true)
         // v4.9.8: the full screen lyrics get the same lyrics (untimed ones show without highlighting)
         fsLyrics.setLyrics(data)
         if (data != null && data.isSynced && data.lines.isNotEmpty()) {
@@ -4551,7 +5116,9 @@ class MainActivity : AppCompatActivity() {
         npLyric.contentDescription = when {
             tappable -> getString(R.string.np_open_lyrics)
             // v4.9.9: the slot is a layout now, so TalkBack reads the message from here
-            npLyricMode == NowPlayingLyricSlot.Mode.NONE -> getString(R.string.np_lyrics_unavailable)
+            npLyricMode == NowPlayingLyricSlot.Mode.NONE -> getString(
+                if (com.minim.music.data.captions.CaptionLyrics.isCaptions(lyrics)) R.string.captions_none else R.string.np_lyrics_unavailable
+            )
             else -> null
         }
         npLyric.importantForAccessibility =
@@ -4560,6 +5127,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** A light haptic tick, if it's on in Settings (the phone's own haptics setting also applies). */
+    /** 5.7.0 u46: the caption switch pill in Full Screen Lyrics (only with two or more tracks). */
+    private fun renderCaptionPill(choice: com.minim.music.playback.PlaybackController.CaptionChoice?) {
+        val current = app.playbackController.uiState.value.currentTrack
+        val t = choice?.options?.getOrNull(choice.selected)
+        if (choice == null || t == null || current?.id != choice.trackId ||
+            !com.minim.music.data.stories.NowPlayingCaptions.showPill(choice.options.size)) {
+            fsLyrics.setCaptionChoice(null)
+            return
+        }
+        fsLyrics.setCaptionChoice(com.minim.music.data.stories.NowPlayingCaptions.pillLabel(t.languageName, t.auto))
+    }
+
     private fun haptic(v: View, type: Int = HapticFeedbackConstants.CONTEXT_CLICK) {
         if (!app.preferences.hapticsEnabled) return
         v.performHapticFeedback(type)
@@ -4639,6 +5218,53 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
         }
+    }
+
+    // 5.7.0 u44: the stories tab (StoriesScreen does the work)
+    private lateinit var storiesScreen: StoriesScreen
+
+    private fun setupStories() {
+        storiesScreen = StoriesScreen(screenStories, app, lifecycleScope, object : StoriesScreen.Host {
+            override fun openSheet(build: (android.widget.LinearLayout) -> Unit) = this@MainActivity.openSheet(build)
+            override fun closeSheet() = this@MainActivity.closeSheet()
+            override fun sheetHeading(parent: android.widget.LinearLayout, title: String, sub: String?) =
+                this@MainActivity.sheetHeading(parent, title, sub, wrapSub = true)
+            override fun sheetClosing(): Boolean = this@MainActivity.sheetClosing
+            override fun confirmSheet(parent: android.widget.LinearLayout, okText: String, onOk: () -> Unit) {
+                val v = layoutInflater.inflate(R.layout.sheet_confirm, parent, false)
+                v.findViewById<TextView>(R.id.sheet_confirm_ok).text = okText
+                v.findViewById<TextView>(R.id.sheet_confirm_cancel).setOnClickListener { this@MainActivity.closeSheet() }
+                v.findViewById<TextView>(R.id.sheet_confirm_ok).setOnClickListener {
+                    if (this@MainActivity.sheetClosing) return@setOnClickListener
+                    haptic(it)
+                    this@MainActivity.closeSheet()
+                    onOk()
+                }
+                parent.addView(v)
+            }
+            override fun showNote(text: String) = this@MainActivity.showNote(text)
+            override fun haptic(v: View) = this@MainActivity.haptic(v)
+            override fun animationsOn(): Boolean = this@MainActivity.animationsOn()
+            override fun showKeyboard(v: View) = this@MainActivity.showKeyboard(v)
+            override fun hideKeyboard() = this@MainActivity.hideKeyboard()
+            override fun showUploadOptions(anchor: View, track: Track) = showTrackOptions(anchor, track)
+            override fun palette(): Pal = pal
+            override fun openChannel(c: com.minim.music.data.stories.StoryChannel) {
+                haptic(screenStories)
+                openChannelPage(c)
+            }
+        })
+    }
+
+    /** The first tap on stories takes its "new" tag away for good. */
+    private fun onStoriesShown() {
+        val prefs = app.preferences
+        if (!prefs.storiesTabSeen) {
+            prefs.storiesTabSeen = true
+            for ((_, row) in topRows) row.storiesNew.visibility = View.GONE
+            fitTopRows()
+        }
+        if (::storiesScreen.isInitialized) storiesScreen.onShown()
     }
 
     private fun onStatsShown() {
@@ -6233,9 +6859,14 @@ class MainActivity : AppCompatActivity() {
             discoverRefresh.setProgressBackgroundColorSchemeColor(p.bg)
             libraryAdapter.setPalette(p)
             listAdapter.setPalette(p)
+            if (::likedArtistAdapter.isInitialized) likedArtistAdapter.setPalette(p)
             if (::importAdapter.isInitialized) importAdapter.setPalette(p)
             searchAdapter.setPalette(p)
             queueAdapter.setPalette(p)
+            if (::storiesScreen.isInitialized) storiesScreen.setPalette(p)
+            styleListFilter()
+            renderNpDownload()
+            if (channelMode != null) renderChannel()
         }
     }
 
@@ -6491,7 +7122,9 @@ class MainActivity : AppCompatActivity() {
         val isPlayingNow = state.currentTrack?.id == track.id &&
             (fromNowPlaying || (queueIndex != null && queueIndex == state.currentIndex))
         val artistLine = track.artist
-        val hasArtist = MusicSourceAdapter.firstArtistName(artistLine).isNotBlank()
+        // 5.7.0 u44: a stories upload's "artist" is its channel, which has no Artist page
+        val hasArtist = MusicSourceAdapter.firstArtistName(artistLine).isNotBlank() &&
+            !com.minim.music.data.stories.StoryTracks.isStory(track)
         val onThatArtist = isArtistOnTop() &&
             MusicSourceAdapter.normName(MusicSourceAdapter.firstArtistName(artistLine)) ==
                 MusicSourceAdapter.normName(artistPage?.name ?: artistLookupName ?: "")
@@ -6546,6 +7179,19 @@ class MainActivity : AppCompatActivity() {
                     goToArtist(artistLine)
                 }
             }
+            // 5.7.0 u47: a tape's channel page
+            val tapeChannel = if (com.minim.music.data.stories.StoryTracks.isStory(track))
+                com.minim.music.data.stories.ChannelVideos.channelFor(track, app.storiesStore.channels) else null
+            if (tapeChannel != null && !(isArtistOnTop() && channelMode?.id == tapeChannel.id)) {
+                sheetAction(box, R.drawable.ic_person, getString(R.string.sheet_go_to_channel)) {
+                    closeSheet()
+                    if (isQueueOpen) closeQueue()
+                    if (isLyricsOpen) closeLyrics(animate = false)
+                    if (isSettingsOpen) closeSettings()
+                    if (isNowPlayingOpen) collapseNowPlaying()
+                    openChannelPage(tapeChannel)
+                }
+            }
             sheetAction(box, R.drawable.ic_share, getString(R.string.sheet_share)) {
                 closeSheet { shareTrack(track) }
             }
@@ -6583,7 +7229,9 @@ class MainActivity : AppCompatActivity() {
      */
     private fun showNowPlayingMenu() {
         val track = app.playbackController.uiState.value.currentTrack ?: return
-        val hasArtist = MusicSourceAdapter.firstArtistName(track.artist).isNotBlank()
+        val isTape = com.minim.music.data.stories.StoryTracks.isStory(track)
+        val hasArtist = !isTape && MusicSourceAdapter.firstArtistName(track.artist).isNotBlank()
+        val channel = if (isTape) com.minim.music.data.stories.ChannelVideos.channelFor(track, app.storiesStore.channels) else null
         openSheet { box ->
             sheetSongHeader(box, track)
             sheetAction(box, R.drawable.ic_playlist_add, getString(R.string.add_to_playlist)) {
@@ -6596,18 +7244,102 @@ class MainActivity : AppCompatActivity() {
                     goToArtist(track.artist)
                 }
             }
+            if (channel != null) {
+                sheetAction(box, R.drawable.ic_person, getString(R.string.sheet_go_to_channel)) {
+                    closeSheet()
+                    collapseNowPlaying()
+                    openChannelPage(channel)
+                }
+            }
             sheetAction(box, R.drawable.ic_share, getString(R.string.sheet_share)) {
                 closeSheet { shareTrack(track) }
+            }
+            // 5.7.0 u47: playback speed, tapes only (songs always play at 1x)
+            if (isTape) {
+                sheetAction(
+                    box,
+                    R.drawable.ic_speed,
+                    getString(R.string.np_speed),
+                    trailing = com.minim.music.data.stories.TapeSpeed.label(app.playbackController.playbackSpeed)
+                ) {
+                    showSpeedSheet(track)
+                }
             }
             sheetAction(
                 box,
                 R.drawable.ic_bedtime,
                 getString(R.string.settings_sleep),
-                trailing = sleepRemainingLabel() ?: getString(R.string.opt_off)
+                trailing = sleepTrailing()
             ) {
                 showSleepTimerSheet()
             }
         }
+    }
+
+    /** 5.7.0 u47: 1x, 1.25x, 1.5x, 2x for the tape playing, remembered for its channel. */
+    private fun showSpeedSheet(track: Track) {
+        val now = app.playbackController.playbackSpeed
+        openSheet { box ->
+            sheetHeading(box, getString(R.string.np_speed), getString(R.string.np_speed_sub, track.artist))
+            for (speed in com.minim.music.data.stories.TapeSpeed.OPTIONS) {
+                val label = com.minim.music.data.stories.TapeSpeed.label(speed)
+                sheetAction(
+                    box,
+                    R.drawable.ic_speed,
+                    label,
+                    trailingIcon = if (speed == now) R.drawable.ic_check else null
+                ) {
+                    closeSheet()
+                    app.playbackController.setTapeSpeed(speed)
+                    showNote(getString(R.string.note_speed, label, track.artist))
+                }
+            }
+        }
+    }
+
+    /** What the sleep row in the menu says on its right: the time left, or Off. */
+    private fun sleepTrailing(): String {
+        val m = app.sleepTimerManager.mode.value
+        if (m == com.minim.music.playback.SleepTimerManager.Mode.OFF) return getString(R.string.opt_off)
+        return sleepRemainingLabel() ?: getString(R.string.opt_off)
+    }
+
+    /** 5.7.0 u47: the live countdown in Now Playing's top left; gone while the timer is off. */
+    private fun renderSleepCountdown(mode: com.minim.music.playback.SleepTimerManager.Mode, ms: Long) {
+        val box = findViewById<View>(R.id.np_sleep) ?: return
+        val on = mode != com.minim.music.playback.SleepTimerManager.Mode.OFF
+        val vis = if (on) View.VISIBLE else View.GONE
+        if (box.visibility != vis) box.visibility = vis
+        if (!on) return
+        val text = com.minim.music.data.stories.SleepOptions.countdown(ms)
+        val tv = findViewById<TextView>(R.id.np_sleep_text)
+        if (tv.text?.toString() != text) tv.text = text
+        box.contentDescription = getString(R.string.np_sleep_cd, text)
+    }
+
+    /** 5.7.0 u47: Now Playing's download button, tapes only: save, saving (ring), saved. */
+    private fun renderNpDownload() {
+        val btn = findViewById<View>(R.id.np_download) ?: return
+        val track = app.playbackController.uiState.value.currentTrack
+        val isTape = com.minim.music.data.stories.StoryTracks.isStory(track)
+        val vis = if (isTape) View.VISIBLE else View.GONE
+        if (btn.visibility != vis) btn.visibility = vis
+        if (!isTape) return
+        val l = SongMenuLogic.offlineRowLook(app.offlineStore.isSaved(track!!.id), app.offline.progress.value[track.id])
+        val icon = findViewById<ImageView>(R.id.np_download_icon)
+        val ring = findViewById<ProgressRing>(R.id.np_download_ring)
+        val saved = app.offlineStore.isSaved(track.id)
+        icon.setImageResource(if (saved) R.drawable.ic_offline_filled else R.drawable.ic_offline)
+        if (l.ring != null) {
+            ring.setColor(pal.fg)
+            ring.setProgress(l.ring)
+            ring.visibility = View.VISIBLE
+            icon.alpha = 0.35f
+        } else {
+            ring.visibility = View.GONE
+            icon.alpha = 1f
+        }
+        btn.contentDescription = getString(if (saved) R.string.np_saved_offline else R.string.np_download)
     }
 
     /** 5.4.1: the live Save offline row in the Now Playing menu (see [nowPlayingOfflineRow]). */
@@ -6672,36 +7404,89 @@ class MainActivity : AppCompatActivity() {
         return ArtworkPipeline.formatDurationSec((ms + 999L) / 1000L)
     }
 
-    /** Sleep timer from Now Playing: Off / 15 / 30 / 60 min, the same choices as Settings. */
+    /**
+     * 5.7.0 u47: the sleep timer, from Now Playing's menu only: Off, 15 / 30 / 45 / 60 min, Custom,
+     * and End of this song (End of this tape while a tape plays).
+     */
     private fun showSleepTimerSheet() {
-        val left = sleepRemainingLabel()
+        val mgr = app.sleepTimerManager
+        val mode = mgr.mode.value
+        val left = if (mode == com.minim.music.playback.SleepTimerManager.Mode.OFF) null else sleepRemainingLabel()
+        val isTape = com.minim.music.data.stories.StoryTracks.isStory(app.playbackController.uiState.value.currentTrack)
+        val presets = com.minim.music.data.stories.SleepOptions.PRESET_MINUTES
         openSheet { box ->
             sheetHeading(box, getString(R.string.settings_sleep), left?.let { getString(R.string.sleep_status, it) })
-            val choices = listOf(
-                0 to getString(R.string.opt_off),
-                15 to getString(R.string.opt_15),
-                30 to getString(R.string.opt_30),
-                60 to getString(R.string.opt_60)
-            )
-            for ((minutes, label) in choices) {
-                val picked = if (minutes == 0) left == null else left != null && sleepChoice == minutes
-                sheetAction(
-                    box,
-                    R.drawable.ic_bedtime,
-                    label,
-                    trailingIcon = if (picked) R.drawable.ic_check else null
-                ) {
+            sheetAction(
+                box, R.drawable.ic_bedtime, getString(R.string.opt_off),
+                trailingIcon = if (mode == com.minim.music.playback.SleepTimerManager.Mode.OFF) R.drawable.ic_check else null
+            ) {
+                closeSheet()
+                val wasOn = mgr.isRunning
+                mgr.cancelTimer()
+                if (wasOn) showNote(getString(R.string.note_sleep_off))
+            }
+            for (minutes in presets) {
+                val label = getString(R.string.opt_minutes, minutes)
+                val picked = mode == com.minim.music.playback.SleepTimerManager.Mode.MINUTES && mgr.minutesChosen == minutes
+                sheetAction(box, R.drawable.ic_bedtime, label, trailingIcon = if (picked) R.drawable.ic_check else null) {
                     closeSheet()
-                    sleepChoice = minutes
-                    if (minutes == 0) {
-                        app.sleepTimerManager.cancelTimer()
-                        if (left != null) showNote(getString(R.string.note_sleep_off))
-                    } else {
-                        app.sleepTimerManager.startTimer(minutes)
-                        showNote(getString(R.string.note_sleep_set, label))
-                    }
-                    if (isSettingsOpen) renderSettingsOptions()
+                    mgr.startTimer(minutes)
+                    showNote(getString(R.string.note_sleep_set, label))
                 }
+            }
+            val customPicked = mode == com.minim.music.playback.SleepTimerManager.Mode.MINUTES && mgr.minutesChosen !in presets
+            sheetAction(
+                box, R.drawable.ic_bedtime, getString(R.string.sleep_custom),
+                trailing = if (customPicked) getString(R.string.opt_minutes, mgr.minutesChosen) else null,
+                trailingIcon = if (customPicked) R.drawable.ic_check else null
+            ) {
+                showCustomSleepSheet()
+            }
+            sheetAction(
+                box, R.drawable.ic_bedtime, getString(if (isTape) R.string.sleep_end_tape else R.string.sleep_end_song),
+                trailingIcon = if (mode == com.minim.music.playback.SleepTimerManager.Mode.END_OF_TRACK) R.drawable.ic_check else null
+            ) {
+                closeSheet()
+                mgr.startEndOfTrack()
+                showNote(getString(if (isTape) R.string.note_sleep_end_tape else R.string.note_sleep_end_song))
+            }
+        }
+    }
+
+    /** 5.7.0 u47: Custom: type the minutes (1 to 720). */
+    private fun showCustomSleepSheet() {
+        openSheet { box ->
+            sheetHeading(box, getString(R.string.sleep_custom), getString(R.string.sleep_custom_sub))
+            val v = layoutInflater.inflate(R.layout.sheet_create_playlist, box, false)
+            val input = v.findViewById<EditText>(R.id.sheet_name_input)
+            val error = v.findViewById<TextView>(R.id.sheet_name_error)
+            val ok = v.findViewById<TextView>(R.id.sheet_create)
+            input.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            input.filters = arrayOf(android.text.InputFilter.LengthFilter(3))
+            input.hint = getString(R.string.sleep_custom_hint)
+            ok.text = getString(R.string.sleep_custom_ok)
+            ok.isEnabled = true
+            ok.alpha = 1f
+            fun submit() {
+                if (sheetClosing) return
+                val minutes = com.minim.music.data.stories.SleepOptions.parseCustom(input.text?.toString())
+                if (minutes == null) {
+                    error.setText(R.string.sleep_custom_bad)
+                    error.visibility = View.VISIBLE
+                    return
+                }
+                haptic(ok)
+                hideKeyboard()
+                closeSheet()
+                app.sleepTimerManager.startTimer(minutes)
+                showNote(getString(R.string.note_sleep_set, getString(R.string.opt_minutes, minutes)))
+            }
+            ok.setOnClickListener { submit() }
+            input.setOnEditorActionListener { _, _, _ -> submit(); true }
+            box.addView(v)
+            input.post {
+                input.requestFocus()
+                showKeyboard(input)
             }
         }
     }
@@ -7160,7 +7945,7 @@ class MainActivity : AppCompatActivity() {
         if (isNowPlayingOpen || isLyricsOpen || isQueueOpen || isSettingsOpen) return
         if (isSearchOpen) closeSearch()
         if (isListOpen) closeList()
-        if (isShelfOpen) closeShelf()
+        if (isShelfOpen) closeShelf(backToSearch = false)
         if (isArtistOpen) {
             artistReturn = null
             closeArtist()
@@ -7422,6 +8207,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (showingCrashReport) return
         handleImportIntent(intent)
     }
 
@@ -7775,7 +8561,7 @@ class MainActivity : AppCompatActivity() {
                 val engine = app.discoverEngine
                 engine.dropHidden(app.database.notInterestedIds.value)?.let { if (discoverShelves.isNotEmpty()) showDiscover(it, afterBuild = false) }
                 if (full) engine.markStale()
-                if (tab == Tab.DISCOVER && discoverShelves.isEmpty()) loadDiscover(force = false)
+                if (isSearchOpen && discoverShelves.isEmpty()) loadDiscover(force = false)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -7928,7 +8714,6 @@ class MainActivity : AppCompatActivity() {
     private val isGeminiOpen get() = ::geminiChat.isInitialized && geminiChat.isOpen
     /** 5.3.0: open, or closed but its closing animation still on screen. */
     private val isGeminiShowing get() = ::geminiChat.isInitialized && geminiChat.isShowing
-    private val discoverSwipeGate = DiscoverSwipeGate()
 
     private fun setupGemini() {
         geminiChat = GeminiChatPanel(findViewById(R.id.gemini_root), geminiHost)
@@ -8008,7 +8793,7 @@ class MainActivity : AppCompatActivity() {
 
         override suspend fun recentTracks(limit: Int): List<Track> = app.database.getRecentTracks(limit)
 
-        override suspend fun likedTracks(): List<Track> = app.database.getLikedTracks()
+        override suspend fun likedTracks(): List<Track> = app.database.getLikedSongs()
 
         override suspend fun playsSince(sinceMs: Long): List<Pair<Track, Long>> =
             app.database.getPlayEvents(sinceMs).map { it.track to it.playedAt }
@@ -8319,6 +9104,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (showingCrashReport) {
+            super.onDestroy()
+            return
+        }
         // 5.2.0: leaving the app (Back from Home, or it being closed) forgets the Gemini chat;
         // a rotation or theme change keeps it
         if (isFinishing && !isChangingConfigurations) app.wipeGeminiChat()
@@ -8372,6 +9161,8 @@ class MainActivity : AppCompatActivity() {
         private const val ANNOUNCEMENT_DELAY_MS = 1_200L
         private const val UPDATE_POPUP_DELAY_MS = 900L
         private const val ARTIST_SHELF = "artist:"
+        /** 5.7.0: the Gemini shelf on the Search page (its title is Gemini's own). */
+        private const val GEMINI_SHELF = "gemini"
         private const val GREETING_INTERVAL_MS = 7_000L
         /** 5.1.0: how often to look for a new greetings file while the app is open. */
         private const val GREETING_FILE_CHECK_MS = 10L * 60 * 1000

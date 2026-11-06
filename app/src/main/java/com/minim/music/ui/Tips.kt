@@ -10,11 +10,12 @@ import com.minim.music.data.local.AppPreferences
 object Tips {
 
     const val FIRST = 0
-    const val SWIPE_UP_DISCOVER = 0
-    const val OPEN_DISCOVER = 11
+    /** 5.7.0: the tips that open the Search page (where Discover's shelves are now) when tapped. */
+    const val SEARCH_PICKS = 0
+    const val OPEN_PICKS = 11
 
     val all: List<String> = listOf(
-        "Swipe up to open Discover.",                   // 0  v4.3.1: Home swipe-up / hint tap -> Discover
+        "Tap search for songs picked for you.",         // 0  5.7.0 (was the Home swipe-up): tap opens Search
         "Tap the greeting for a surprise song.",        // 1  greeting tap -> random Liked song
         "Double-tap the album art to play or pause.",   // 2  default double-tap action
         "Swipe the album art to skip.",                 // 3  sideways fling on Now Playing art
@@ -25,8 +26,8 @@ object Tips {
         "Change gestures and track fade in Settings.",  // 8
         "Switch Light or Dark in Settings.",            // 9
         "Set a sleep timer in Settings.",               // 10
-        "Discover has songs picked from what you play.",  // 11 v4.3: tap opens Discover
-        "Not into a Discover song? Long-press it.",      // 12 v4.3: "Not interested"
+        "Search has songs picked from what you play.",   // 11 5.7.0: tap opens Search (Discover's shelves)
+        "Not into a picked song? Long-press it.",        // 12 v4.3: "Not interested" on a shelf song
         "In full screen lyrics, tap a line to jump there."  // 13 5.1.0: tap a synced line to seek
     )
 

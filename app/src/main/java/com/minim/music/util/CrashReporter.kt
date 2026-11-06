@@ -10,8 +10,8 @@ import java.util.Locale
 /**
  * Hotfix 4.9.10: a crash catcher. An uncaught exception (any thread) is written to
  * [FILE_NAME] in the app's private files folder before Android's own handler closes the app.
- * On the next launch MainActivity shows a small "Minim crashed last time" card with a Copy
- * button ([CrashCard]), so the stack trace can be pasted into a chat.
+ * On the next launch, before MainActivity builds anything, a small "Minim crashed last time"
+ * screen ([com.minim.music.ui.CrashReportActivity], 5.7.0 u50) shows it with Copy and Share.
  *
  * Nothing here may throw: a crash catcher that crashes hides the real crash.
  */

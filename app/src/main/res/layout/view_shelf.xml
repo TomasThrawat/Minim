@@ -70,7 +70,7 @@
             android:textSize="12sp" />
     </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
+    <com.minim.music.ui.FadingRecyclerView
         android:id="@+id/shelf_grid"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

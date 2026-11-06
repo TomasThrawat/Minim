@@ -47,7 +47,9 @@ class ArtworkPipeline(
         url: String?,
         targetPx: Int,
         extractAccent: Boolean = false,
-        onAccentReady: ((Int) -> Unit)? = null
+        onAccentReady: ((Int) -> Unit)? = null,
+        /** 5.7.0 u46: keep a video frame at 16:9 (only its black bars cut) instead of a square. */
+        wide: Boolean = false
     ) {
         val previousJob = imageView.getTag(R.id.tag_artwork_job) as? Job
         previousJob?.cancel()
@@ -64,7 +66,7 @@ class ArtworkPipeline(
             return
         }
 
-        val cacheKey = "$cleanUrl@$targetPx"
+        val cacheKey = if (wide) "wide:$cleanUrl@$targetPx" else "$cleanUrl@$targetPx"
         bitmapCache.get(cacheKey)?.let { cachedBmp ->
             if (!cachedBmp.isRecycled) {
                 // v4.9.9: from memory it shows at once, no fade, so scrolling never flickers. The
@@ -84,7 +86,7 @@ class ArtworkPipeline(
         imageView.setImageDrawable(null)
 
         val job = scope.launch {
-            val bitmap = fetchAndDecodeDownsampled(cleanUrl, targetPx)
+            val bitmap = fetchAndDecodeDownsampled(cleanUrl, targetPx, wide)
             val accent = if (extractAccent && bitmap != null) {
                 getOrExtractPaletteAccent(cleanUrl, bitmap)
             } else {
@@ -168,18 +170,18 @@ class ArtworkPipeline(
      * down by powers of two only while it stays at least [reqSizePx], and YouTube video frames are cut to a
      * centred square without their black bars.
      */
-    private fun fetchAndDecodeDownsampled(url: String, reqSizePx: Int): Bitmap? {
+    private fun fetchAndDecodeDownsampled(url: String, reqSizePx: Int, wide: Boolean = false): Bitmap? {
         // 5.4.0: a song saved offline has its cover saved too, so it shows with no signal
         try {
             offlineArt?.invoke(url)?.let { (file, frame) ->
-                decodeFile(file, reqSizePx, frame)?.let { return it }
+                decodeFile(file, reqSizePx, frame, wide)?.let { return it }
             }
         } catch (_: Exception) {
         }
         for (candidate in ArtworkUrls.candidates(url, reqSizePx)) {
             if (isKnownMissing(candidate)) continue
             val file = fetchToDisk(candidate) ?: continue
-            val bmp = decodeFile(file, reqSizePx, ArtworkUrls.isVideoThumb(candidate))
+            val bmp = decodeFile(file, reqSizePx, ArtworkUrls.isVideoThumb(candidate), wide)
             if (bmp != null) return bmp
             // A file that won't decode: drop it so the next load downloads it again
             file.delete()
@@ -241,7 +243,35 @@ class ArtworkPipeline(
         }
     }
 
-    private fun decodeFile(file: File, reqSizePx: Int, videoFrame: Boolean): Bitmap? {
+    /** 5.7.0 u46: a wide card's picture: [reqWidthPx] wide, a video frame's black bars cut off. */
+    private fun decodeWide(file: File, reqWidthPx: Int, videoFrame: Boolean): Bitmap? {
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            val w = bounds.outWidth
+            val h = bounds.outHeight
+            if (w <= 0 || h <= 0) return null
+            val opts = BitmapFactory.Options().apply {
+                inSampleSize = calculateInSampleSize(w, h, reqWidthPx, (reqWidthPx * 9) / 16)
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            val decoded = BitmapFactory.decodeFile(file.absolutePath, opts) ?: return null
+            if (!videoFrame) return decoded
+            val band = ArtworkUrls.wideCrop(decoded.width, decoded.height)
+            if (band.height <= 0 || band.height == decoded.height) return decoded
+            val out = Bitmap.createBitmap(decoded, 0, band.top, decoded.width, band.height)
+            if (out !== decoded) decoded.recycle()
+            out
+        } catch (_: OutOfMemoryError) {
+            bitmapCache.evictAll()
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun decodeFile(file: File, reqSizePx: Int, videoFrame: Boolean, wide: Boolean = false): Bitmap? {
+        if (wide) return decodeWide(file, reqSizePx, videoFrame)
         return try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(file.absolutePath, bounds)

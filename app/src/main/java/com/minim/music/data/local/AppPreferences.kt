@@ -135,6 +135,14 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("stats_tab_seen", false)
         set(value) = prefs.edit().putBoolean("stats_tab_seen", value).apply()
 
+    /**
+     * 5.7.0 u44: the "new" tag next to the tab shows until the tab is first tapped, then never again.
+     * u47: the tab is "tapes" now, with its own key, so the tag shows once more for the new name.
+     */
+    var storiesTabSeen: Boolean
+        get() = prefs.getBoolean("tapes_tab_seen", false)
+        set(value) = prefs.edit().putBoolean("tapes_tab_seen", value).apply()
+
     /** The recap day (yyyymmdd) the user has looked at; the dot on Stats shows until then. */
     var recapViewedDay: Int
         get() = prefs.getInt("recap_viewed_day", 0)

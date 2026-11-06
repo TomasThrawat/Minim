@@ -148,6 +148,10 @@ class TrackAdapter(
             offlineMark.tag = "tint:$on"
             ring.tag = "tint:$on"
             artwork.loadInto(art, track.thumbnailUrl, dp(44))
+            // 5.7.0 u47: a played tape gets a small tick (Liked, Offline, queue, search...)
+            val tapePlayed = com.minim.music.data.stories.StoryTracks.isStory(track) &&
+                com.minim.music.data.stories.PlayedMark.isPlayed(com.minim.music.MinimApp.instance.storyProgress.get(track.id))
+            artist.post { com.minim.music.ui.PlayedTick.apply(artist, tapePlayed) }
             Painter.paint(itemView, pal)
         }
     }

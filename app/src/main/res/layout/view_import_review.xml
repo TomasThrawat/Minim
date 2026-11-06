@@ -82,7 +82,7 @@
             android:textSize="12sp"
             android:visibility="gone" />
 
-        <androidx.recyclerview.widget.RecyclerView
+        <com.minim.music.ui.FadingRecyclerView
             android:id="@+id/import_tracks"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

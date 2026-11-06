@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 5.7.0 u45: the first tile of the stories channel row: a big + in a ring the size of the channel
+     photos, "Add" under it like a channel name. Opens the add channel sheet (name, link or @handle).
+     Replaces the "+ Add Channel" pill that sat in the top row. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/story_add"
+    android:layout_width="76dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="8dp"
+    android:clickable="true"
+    android:contentDescription="@string/add_channel"
+    android:focusable="true"
+    android:gravity="center_horizontal"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/story_add_circle"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/shape_circle_outline"
+        android:tag="fill:fg">
+
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_add"
+            android:tag="tint:fg" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/story_add_label"
+        style="@style/MinimText.Semi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:importantForAccessibility="no"
+        android:singleLine="true"
+        android:tag="text:fg"
+        android:text="@string/add_channel_short"
+        android:textSize="11sp" />
+</LinearLayout>

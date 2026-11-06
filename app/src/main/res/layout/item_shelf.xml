@@ -32,6 +32,7 @@
             android:textSize="15sp" />
 
         <ImageView
+            android:id="@+id/shelf_chevron"
             android:layout_width="16dp"
             android:layout_height="16dp"
             android:layout_marginStart="8dp"

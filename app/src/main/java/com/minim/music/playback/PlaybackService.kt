@@ -43,6 +43,29 @@ class PlaybackService : MediaSessionService() {
     lateinit var player: ExoPlayer
         private set
 
+    companion object {
+        /** 5.7.0 u47: the live player, for the sleep timer's "end of this song" (same process). */
+        @Volatile
+        var activePlayer: ExoPlayer? = null
+            private set
+
+        @OptIn(UnstableApi::class)
+        fun setPauseAtEnd(on: Boolean) {
+            val p = activePlayer ?: return
+            if (p.pauseAtEndOfMediaItems != on) p.pauseAtEndOfMediaItems = on
+        }
+    }
+
+    private val sleepEndListener = object : androidx.media3.common.Player.Listener {
+        @OptIn(UnstableApi::class)
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!playWhenReady && reason == androidx.media3.common.Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                if (player.pauseAtEndOfMediaItems) player.pauseAtEndOfMediaItems = false
+                MinimApp.instance.sleepTimerManager.onEndOfTrackReached()
+            }
+        }
+    }
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -118,6 +141,8 @@ class PlaybackService : MediaSessionService() {
         // v4.9.5: added before the MediaSession so it runs first and the UI already knows a
         // quiet restart is under way when the error reaches it
         player.addListener(streamRecoveryListener)
+        player.addListener(sleepEndListener)
+        activePlayer = player
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -198,6 +223,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        if (activePlayer === player) activePlayer = null
         recoveryHandler.removeCallbacksAndMessages(null)
         MinimApp.instance.preferences.removeAudioSettingsListener(audioSettingsListener)
         trackFadeController?.release()

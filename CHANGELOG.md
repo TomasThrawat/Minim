@@ -2,6 +2,26 @@
 
 Every Minim release, newest first. Download any of them from the [Releases](https://github.com/UniquelyGaurab/minim/releases) page.
 
+## 5.7.0 (2026-11-07)
+
+- **tapes:** a new tab for YouTube channels, as audio. Tap the + tile to add a channel by name or link, and its uploads play like songs without the video. Shorts and anything 60 seconds or shorter stay out
+- **Tape shelves:** Continue listening with a progress line and minutes left, New this week, then a row per channel. Tapes pick up where you stopped, finished ones go dim with a tick, and a dot on a channel's photo means a new upload you haven't started
+- **Chips on tapes:** Under 20 mins and 30+ mins filter every shelf, and New to You finds uploads from channels you don't follow yet
+- **Channel pages:** tap a channel's photo, its name on Now Playing or Go to channel in a tape's menu for its subscriber count, a Follow / Following pill, and Latest and Popular
+- **Captions:** while a tape plays, tap CC next to the three dots on Now Playing to read its YouTube captions in Full Screen Lyrics. A pill switches languages when there's more than one
+- **Speed and sleep timer:** in Now Playing's three dots. Tapes play at 1x, 1.25x, 1.5x or 2x and each channel keeps its own speed. The sleep timer has 15 to 60 minutes, Custom and End of this song (or tape), with a countdown in the top left. It's no longer in Settings
+- **Liked:** Liked Songs is now just Liked, with Songs, Tapes and Artists chips. Offline has Songs and Tapes chips. The heart likes tapes, and tapes can be saved offline from the button next to CC
+- **Like artists:** a heart next to Shuffle on Artist pages. Liked artists show up under Liked → Artists
+- **Mini player progress:** the pill fills slowly from the left as the song plays, and slides back when it changes. The floating pill is narrower too
+- **Edge fades:** lists fade out under the header and behind the floating mini player instead of being cut off
+- **Discover moves to Search:** with the search box empty, Search shows your Discover shelves, your top artists and a daily shelf Gemini picks and names itself. Swiping up on Home no longer opens Discover
+- **Full Screen Lyrics** has the same seek bar as Now Playing
+- **Crash screen:** if Minim crashes, the next time you open it you'll see "Minim crashed last time" with Copy, Share and Continue, even for crashes while it starts. Nothing is sent unless you tap Share
+
+Once a day at most, a short summary of what you play (top songs and artists, recent plays and likes) is sent to Google Gemini to pick the Search shelf. Nothing else is sent for it.
+
+Download Minim-v5.7.0.apk from the release (Android 9 or newer). It installs over 5.6.0 and keeps your library, settings and account.
+
 ## 5.6.0 (2026-11-05)
 
 - **Lyrics translation:** in Full Screen Lyrics, tap the new translate button in the top right to get the English meaning under every line. It only shows up for songs that aren't in English, like Hindi, Hinglish, Spanish or Korean

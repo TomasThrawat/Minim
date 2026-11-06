@@ -70,7 +70,7 @@
         </LinearLayout>
     </FrameLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
+    <com.minim.music.ui.FadingRecyclerView
         android:id="@+id/library_grid"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
