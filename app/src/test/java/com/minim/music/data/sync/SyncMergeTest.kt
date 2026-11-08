@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Minim 5.0.0 part 2: the pure merge rules of cloud sync (no Android, no Firestore). */
+/** Compatibility tests for the legacy local sync codec and merge rules; no live sync service is used. */
 class SyncMergeTest {
 
     private fun pl(
@@ -242,7 +242,7 @@ class SyncMergeTest {
     fun documentsRoundTrip() {
         val like = LikeState(false, 1234L)
         assertEquals(like, SyncCodec.decodeLike(SyncCodec.likeDoc(like, null)))
-        // Firestore hands numbers back as Long or Double
+        // Numeric values may arrive as Long or Double from a platform or serialization adapter.
         assertEquals(like, SyncCodec.decodeLike(mapOf("l" to false, "at" to 1234.0)))
         assertNull(SyncCodec.decodeLike(mapOf("l" to true)))
 

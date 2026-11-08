@@ -39,7 +39,8 @@ class CrashReporterTest {
     @Test
     fun hugeTracesAreCut() {
         fun deep(n: Int): Nothing = if (n == 0) throw IllegalStateException("deep") else deep(n - 1)
-        val e = try { deep(3000); null } catch (t: Throwable) { t }!!
+        val e = runCatching { deep(3000) }.exceptionOrNull()
+            ?: throw AssertionError("Expected the deep trace helper to throw")
         val r = CrashReporter.format(e, "main", "v", "d", 0L)
         assertTrue(r.length <= CrashReporter.MAX_CHARS + 20)
     }

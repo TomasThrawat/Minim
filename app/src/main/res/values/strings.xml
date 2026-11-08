@@ -305,19 +305,19 @@
 
     <!-- v5.0: Account (optional Google sign-in) -->
     <string name="account_title">Account</string>
-    <string name="account_pitch">Sign in to YouTube Music to sync liked songs between this phone and your music account.</string>
-    <string name="account_sign_in">Sign in to YouTube Music</string>
-    <string name="account_signing_in">Signing in…</string>
+    <string name="account_pitch">Connect your Google account to keep your YouTube Music likes in sync with this phone.</string>
+    <string name="account_sign_in">Connect Google account</string>
+    <string name="account_signing_in">Connecting…</string>
     <string name="account_sync_on">YouTube Music connected</string>
     <string name="account_sync_now">Sync now</string>
     <string name="account_sign_out">Sign out</string>
-    <string name="account_privacy">Your YouTube Music session is encrypted on this phone and used only to sync liked songs. Minim does not store your Google password.</string>
+    <string name="account_privacy">Google access tokens stay in memory only. Minim stores a one-way account identifier and pending like changes on this phone. It never stores your Google password.</string>
     <string name="account_signed_in_note">Connected to YouTube Music</string>
     <string name="account_signed_in_as">Connected as %1$s</string>
     <string name="account_signed_out_note">Disconnected. Your local music stays on this phone.</string>
     <string name="account_err_offline">You\'re offline. Connect to the internet and try again.</string>
     <string name="account_err_cancelled">Sign-in cancelled.</string>
-    <string name="account_err_failed">Could not sign in to YouTube Music. Check your connection and try again.</string>
+    <string name="account_err_failed">Could not connect your Google account. Check your connection and try again.</string>
     <!-- 5.0.0 part 3: festivals and announcements from the cloud config -->
     <string name="vibe_banner_close">Close</string>
     <string name="vibe_open">Open</string>

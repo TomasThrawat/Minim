@@ -197,7 +197,7 @@ class VibeConfigTest {
     }
 
     @Test
-    fun firestoreValuesAreNormalised() {
+    fun dateValuesAreNormalised() {
         val date = GregorianCalendar(2026, 10, 8, 9, 30).time
         val marker = Any()
         val raw = mapOf(

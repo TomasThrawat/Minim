@@ -206,7 +206,7 @@ class LyricsTranslationTest {
         return MockResponse().setHeader("Content-Type", "text/event-stream").setBody("data: $event\n\n")
     }
 
-    private fun translator(server: MockWebServer, dir: File, timeout: Long = 10_000L) = LyricsTranslator(
+    private fun translator(dir: File, timeout: Long = 10_000L) = LyricsTranslator(
         GeminiClient(OkHttpClient.Builder().readTimeout(5, TimeUnit.SECONDS).build()),
         TranslationCache(dir),
         CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -222,7 +222,7 @@ class LyricsTranslationTest {
         server.start()
         val dir = tempDir()
         val lines = listOf("Tum hi ho", "Ab tum hi ho", "♪", "I need you tonight")
-        val t = translator(server, dir)
+        val t = translator(dir)
         val first = t.translate("song1", lines, "Tum Hi Ho", "Arijit Singh") { ep(server) }
         assertEquals(listOf("Only you", "Now, only you", null, null), first)
         assertEquals(1, server.requestCount)
@@ -230,7 +230,7 @@ class LyricsTranslationTest {
         assertTrue(sent.contains("responseSchema"))
         // again, and after a restart: no new call
         assertEquals(first, t.translate("song1", lines, null, null) { ep(server) })
-        assertEquals(first, translator(server, dir).cached("song1", lines))
+        assertEquals(first, translator(dir).cached("song1", lines))
         assertEquals(1, server.requestCount)
         server.shutdown()
     }
@@ -243,7 +243,7 @@ class LyricsTranslationTest {
         server.start()
         val lines = listOf("Tum hi ho", "Ab tum hi ho", "Dil mera", "Kya hua")
         try {
-            translator(server, tempDir()).translate("s", lines, null, null) { ep(server) }
+            translator(tempDir()).translate("s", lines, null, null) { ep(server) }
             fail("should fail")
         } catch (e: GeminiException) {
             assertNotNull(e.problem)
@@ -261,12 +261,12 @@ class LyricsTranslationTest {
         val dir = tempDir()
         val lines = listOf("Tum hi ho", "Ab tum hi ho")
         try {
-            translator(server, dir).translate("s", lines, null, null) { ep(server) }
+            translator(dir).translate("s", lines, null, null) { ep(server) }
             fail("500 should fail")
         } catch (e: GeminiException) { /* expected */ }
         val started = System.currentTimeMillis()
         try {
-            translator(server, dir, timeout = 500L).translate("s", lines, null, null) { ep(server) }
+            translator(dir, timeout = 500L).translate("s", lines, null, null) { ep(server) }
             fail("timeout should fail")
         } catch (e: GeminiException) {
             assertEquals(GeminiProblem.Busy, e.problem)

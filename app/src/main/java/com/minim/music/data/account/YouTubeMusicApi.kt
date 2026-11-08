@@ -1,6 +1,7 @@
 package com.minim.music.data.account
 
 import com.minim.music.data.model.Track
+import com.minim.music.util.SafeRegex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -23,7 +24,7 @@ internal data class YouTubeMusicWebConfig(
 
 internal object YouTubeMusicWebConfigParser {
     fun parse(html: String): YouTubeMusicWebConfig? {
-        fun value(name: String): String? = Regex("""["']$name\s*:\s*["']([^"']+)["']""")
+        fun value(name: String): String? = SafeRegex.of("""["]$name["]\s*:\s*["]([^"]+)["]""")
             .find(html)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
         val apiKey = value("INNERTUBE_API_KEY") ?: return null
         val version = value("INNERTUBE_CLIENT_VERSION") ?: return null

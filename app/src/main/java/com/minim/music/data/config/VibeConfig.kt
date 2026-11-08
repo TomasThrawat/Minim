@@ -9,9 +9,8 @@ import com.minim.music.data.update.AppVersion
 import java.util.Calendar
 
 /**
- * Minim 5.0.0 part 3: the app's "vibe" from the cloud, without an app update. It lives in ONE
- * Firestore document, `config/app` (public read, no writes, per firestore.rules). It is never under
- * users/{uid}, so Delete account never touches it.
+ * Local festival, announcement and greeting configuration. This build uses the defaults directly
+ * through VibeConfigSource; no remote configuration service or Firebase SDK is involved.
  *
  * Document fields (all optional; anything missing or broken falls back to the built-in behaviour):
  *
@@ -30,7 +29,7 @@ import java.util.Calendar
  *   update_lock    { min_version, message }: versions older than min_version must update before
  *                  using the app. Only kept when a newer release really exists on GitHub (the app checks).
  *
- * Pure Kotlin (no Android, no Firebase), so it is unit-tested. Nothing in here throws.
+ * Pure Kotlin (no Android or cloud SDK), so it is unit-tested. Nothing in here throws.
  */
 data class FestivalEvent(
     val id: String,
@@ -137,9 +136,9 @@ data class VibeConfig(
 }
 
 /**
- * Reads the `config/app` document's data (the map Firestore hands over: String, Long, Double,
- * Boolean, List, Map; timestamps are turned into "YYYY-MM-DD" strings before this). Unknown fields
- * are ignored, bad entries are skipped and the rest is kept. Never throws.
+ * Reads a plain config map of strings, numbers, booleans, lists and maps. Date-like values are
+ * normalized to "YYYY-MM-DD" before parsing. Unknown fields are ignored, bad entries are skipped
+ * and the rest is kept. Never throws.
  */
 object VibeConfigParser {
 
@@ -366,10 +365,9 @@ object VibeConfigParser {
 }
 
 /**
- * Firestore hands over its own types for some fields (a Timestamp for a date picked in the console).
- * This turns the document data into plain values the parser reads: [dateOf] returns the Date of a
- * timestamp-like value (null for anything else), which becomes "YYYY-MM-DD" on the phone's calendar.
- * Maps and lists are walked (to a sane depth); other values pass through.
+ * Converts nested config values into plain types that [VibeConfigParser] can read. [dateOf]
+ * optionally converts a platform-specific date value into a Date (null for other objects), which
+ * becomes "YYYY-MM-DD" on the phone's calendar. Maps and lists are walked to a bounded depth.
  */
 object VibeConfigValues {
     private const val MAX_DEPTH = 8

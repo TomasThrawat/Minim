@@ -82,7 +82,6 @@ open class MinimApp : Application() {
         )
     }
 
-    /** Optional YouTube Music account session, restored from encrypted local storage. */
     /** 5.7.0 u46: how far you got into each stories upload (resume, Continue listening, dimming). */
     val storyProgress: com.minim.music.data.stories.StoryProgressStore by lazy {
         com.minim.music.data.stories.StoryProgressStore(this)

@@ -34,6 +34,8 @@ class NowPlayingLyricCrashTest {
     )
 
     private fun lineViews(v: NowPlayingLyricView) = (0 until v.childCount).map { v.getChildAt(it) as TextView }
+    private val scaledDensity: Float
+        get() = context.resources.displayMetrics.density * context.resources.configuration.fontScale
 
     @Test
     fun songWithoutLyricsDoesNotCrash() {
@@ -43,7 +45,7 @@ class NowPlayingLyricCrashTest {
         // "Lyrics not available" is a fixed 15 sp, without auto-size
         val msg = lineViews(v).first { it.text.toString() == "Lyrics not available" }
         assertEquals(TextViewCompat.AUTO_SIZE_TEXT_TYPE_NONE, TextViewCompat.getAutoSizeTextType(msg))
-        assertEquals(15f * context.resources.displayMetrics.scaledDensity, msg.textSize, 0.01f)
+        assertEquals(15f * scaledDensity, msg.textSize, 0.01f)
     }
 
     @Test
@@ -54,7 +56,7 @@ class NowPlayingLyricCrashTest {
         v.onPosition(0, 100L, playing = true, animate = false)
         val line = lineViews(v).first { it.text.toString() == "Hello there" }
         assertEquals(TextViewCompat.AUTO_SIZE_TEXT_TYPE_UNIFORM, TextViewCompat.getAutoSizeTextType(line))
-        val d = context.resources.displayMetrics.scaledDensity
+        val d = scaledDensity
         assertEquals(18f * d, TextViewCompat.getAutoSizeMinTextSize(line).toFloat(), 1f)
         assertEquals(22f * d, TextViewCompat.getAutoSizeMaxTextSize(line).toFloat(), 1f)
     }

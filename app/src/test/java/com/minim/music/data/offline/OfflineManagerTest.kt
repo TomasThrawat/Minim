@@ -37,6 +37,7 @@ class OfflineManagerTest {
     private val maxRunning = AtomicInteger(0)
     private val failIds: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
     private var gate: CompletableDeferred<Unit>? = null
+    private var threeStarted: CompletableDeferred<Unit>? = null
 
     private fun track(id: String) = Track(id, "Song $id", "Artist", 200, "", "")
 
@@ -44,6 +45,7 @@ class OfflineManagerTest {
     private val saver = SongSaver { t, onProgress ->
         val now = running.incrementAndGet()
         maxRunning.accumulateAndGet(now) { a, b -> maxOf(a, b) }
+        if (now == 3) threeStarted?.complete(Unit)
         try {
             gate?.await()
             onProgress(0.5f)
@@ -75,9 +77,17 @@ class OfflineManagerTest {
 
     @Test
     fun savesThreeSongsAtATime() = runBlocking {
+        gate = CompletableDeferred()
+        threeStarted = CompletableDeferred()
         val tracks = (1..9).map { track("s$it") }
         assertEquals(9, manager.save(tracks))
         assertTrue(manager.busy)
+
+        // Keep the first batch blocked until all three semaphore permits are demonstrably in use.
+        withTimeout(10_000) { threeStarted!!.await() }
+        assertEquals(3, maxRunning.get())
+        gate!!.complete(Unit)
+
         idle()
         assertEquals(3, maxRunning.get())
         assertEquals(9, store.saved.value.size)
