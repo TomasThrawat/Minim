@@ -4,8 +4,8 @@ import java.security.MessageDigest
 import java.util.Locale
 
 /*
- * Minim 5.0.0 part 2: cloud sync, the pure parts (no Android, no Firestore), so they can be
- * unit tested: stable IDs, the compact encodings stored in Firestore, and the merge rules.
+ * Minim 5.0.0 part 2: local sync utilities, the pure parts (no Android or cloud SDK), so they can be
+ * unit tested: stable IDs, the compact encodings stored by the sync transport, and the merge rules.
  *
  * Every merge here is idempotent (merging the same data twice changes nothing) and does not care
  * about order (A then B gives the same as B then A), so a phone can merge the cloud as often as
@@ -41,7 +41,7 @@ object SyncIds {
         return "d" + sha1("minim:$base").take(12)
     }
 
-    /** A song ID that can be a Firestore document ID / map key on its own. */
+    /** A song ID that can be a remote sync document ID / map key on its own. */
     fun isSyncableSongId(id: String): Boolean =
         id.isNotEmpty() && id.length <= 64 && id.all { it.isLetterOrDigit() || it == '-' || it == '_' } &&
             !(id.startsWith("__") && id.endsWith("__"))
@@ -54,7 +54,7 @@ object SyncIds {
 
 /**
  * The compact encodings. Song details and entries are packed into one string per entry (fields
- * split by the invisible unit separator) so a big playlist or a busy day is one Firestore field per
+ * split by the invisible unit separator) so a big playlist or a busy day is one remote service field per
  * entry instead of five: smaller documents, fewer index entries.
  */
 object SyncCodec {
@@ -121,7 +121,7 @@ object SyncCodec {
         return h to k.substring(i + 1)
     }
 
-    /** Firestore hands numbers back as Long or Double. */
+    /** Remote services may return numbers as as Long or Double. */
     fun num(v: Any?): Long? = when (v) {
         is Long -> v
         is Int -> v.toLong()
@@ -335,6 +335,8 @@ object SyncMerge {
 
 // ---- local sync status -----------------------------------------------------------------------------
 
+enum class SyncProblem { OFFLINE, PERMISSION, NOT_READY, QUOTA, FAILED }
+
 object SyncText {
     /** "Synced just now" / "Synced 5 min ago" / "Synced 3 h ago" / "Synced 2 d ago". */
     fun syncedLine(nowMs: Long, lastSyncAt: Long): String {
@@ -359,5 +361,16 @@ object SyncText {
             else -> 24L * 60L * 60_000L
         }
         return (step - diff % step).coerceIn(1_000L, 60L * 60_000L)
+    }
+
+
+    /** General remote-sync failure categories; independent of any cloud vendor SDK. */
+    fun classify(code: String?, timedOut: Boolean = false): SyncProblem = when {
+        timedOut -> SyncProblem.OFFLINE
+        code == "UNAVAILABLE" || code == "DEADLINE_EXCEEDED" -> SyncProblem.OFFLINE
+        code == "PERMISSION_DENIED" || code == "UNAUTHENTICATED" -> SyncProblem.PERMISSION
+        code == "NOT_FOUND" || code == "FAILED_PRECONDITION" -> SyncProblem.NOT_READY
+        code == "RESOURCE_EXHAUSTED" -> SyncProblem.QUOTA
+        else -> SyncProblem.FAILED
     }
 }
