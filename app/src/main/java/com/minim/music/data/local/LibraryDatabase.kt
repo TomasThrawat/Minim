@@ -19,6 +19,9 @@ class LibraryDatabase(context: Context) :
     private val _likedIds = MutableStateFlow<Set<String>>(emptySet())
     val likedIds: StateFlow<Set<String>> = _likedIds.asStateFlow()
 
+    /** Called after a local like changes so YouTube Music can receive it or queue it offline. */
+    @Volatile var onYouTubeMusicLikeChanged: ((Track, Boolean) -> Unit)? = null
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -762,8 +765,50 @@ class LibraryDatabase(context: Context) :
             db.endTransaction()
         }
         refreshLikedCache()
+        onYouTubeMusicLikeChanged?.invoke(track, newLiked == 1)
         notifySync(urgent = true)
         newLiked == 1
+    }
+
+    /** Reconciles local likes only after YouTube Music has returned every liked-songs page. */
+    suspend fun applyYouTubeMusicLikedTracks(remoteTracks: List<Track>, replaceExisting: Boolean) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        val now = System.currentTimeMillis()
+        val previousLikedAt = HashMap<String, Long>()
+        db.beginTransaction()
+        try {
+            if (replaceExisting) {
+                db.rawQuery("SELECT id, liked_at FROM tracks WHERE is_liked = 1", null).use { c ->
+                    while (c.moveToNext()) previousLikedAt[c.getString(0)] = c.getLong(1)
+                }
+            }
+            val remoteIds = remoteTracks.mapTo(HashSet()) { it.id }
+            remoteTracks.forEach { track ->
+                upsertTrackInternal(db, track)
+                val likedAt = previousLikedAt[track.id]?.takeIf { it > 0L } ?: now
+                val values = ContentValues().apply {
+                    put("is_liked", 1)
+                    put("liked_at", likedAt)
+                    put("like_changed_at", now)
+                }
+                db.update("tracks", values, "id = ?", arrayOf(track.id))
+            }
+            if (replaceExisting) {
+                previousLikedAt.keys.filterNot { it in remoteIds }.chunked(400).forEach { ids ->
+                    if (ids.isNotEmpty()) {
+                        val marks = ids.joinToString(",") { "?" }
+                        db.execSQL(
+                            "UPDATE tracks SET is_liked = 0, liked_at = 0, like_changed_at = ? WHERE is_liked = 1 AND id IN ($marks)",
+                            arrayOf<Any>(now, *ids.toTypedArray())
+                        )
+                    }
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        refreshLikedCache()
     }
 
     suspend fun getRecentTracks(limit: Int = 25): List<Track> = withContext(Dispatchers.IO) {

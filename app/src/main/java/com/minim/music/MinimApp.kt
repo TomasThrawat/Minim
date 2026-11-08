@@ -82,7 +82,7 @@ open class MinimApp : Application() {
         )
     }
 
-    /** v5.0: the optional Google account (Firebase Auth). Created on first use, never throws. */
+    /** Optional YouTube Music account session, restored from encrypted local storage. */
     /** 5.7.0 u46: how far you got into each stories upload (resume, Continue listening, dimming). */
     val storyProgress: com.minim.music.data.stories.StoryProgressStore by lazy {
         com.minim.music.data.stories.StoryProgressStore(this)
@@ -98,15 +98,16 @@ open class MinimApp : Application() {
         com.minim.music.data.artists.LikedArtistsStore(this)
     }
 
-    val account: com.minim.music.data.account.MinimAccount by lazy {
-        com.minim.music.data.account.MinimAccount(this)
+    /** YouTube Music web session, encrypted with a non-exportable Android Keystore key. */
+    val youtubeMusicAccount: com.minim.music.data.account.YouTubeMusicAccount by lazy {
+        com.minim.music.data.account.YouTubeMusicAccount(this)
     }
 
-    /** v5.0.0: cloud sync of likes, playlists and listening history (only while signed in). */
-    val sync: com.minim.music.data.sync.CloudSync by lazy {
-        com.minim.music.data.sync.CloudSync(this, database, account)
+    /** Direct liked-song sync with YouTube Music; Minim playlists and statistics stay local. */
+    val youtubeMusicSync: com.minim.music.data.account.YouTubeMusicSync by lazy {
+        com.minim.music.data.account.YouTubeMusicSync(this, database, youtubeMusicAccount, okHttpClient)
     }
-    @Volatile private var syncStarted = false
+    @Volatile private var musicSyncStarted = false
 
     /**
      * v4.9.8: app opens for the whole process (replaces 4.9.6's flags on MainActivity, which missed
@@ -138,11 +139,10 @@ open class MinimApp : Application() {
             override fun onActivityStarted(activity: android.app.Activity) {
                 val wasForeground = foreground.isInForeground
                 foreground.onActivityStarted()
-                if (!wasForeground && syncStarted) try { sync.onForeground() } catch (_: Throwable) { }
+                if (!wasForeground && musicSyncStarted) try { youtubeMusicSync.onForeground() } catch (_: Throwable) { }
             }
             override fun onActivityStopped(activity: android.app.Activity) {
                 foreground.onActivityStopped(activity.isChangingConfigurations)
-                if (!foreground.isInForeground && syncStarted) try { sync.onBackground() } catch (_: Throwable) { }
             }
             override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
             override fun onActivityResumed(activity: android.app.Activity) = Unit
@@ -184,19 +184,17 @@ open class MinimApp : Application() {
         updates = com.minim.music.data.update.AppUpdates(this, okHttpClient)
         updates.cleanUp()
         try {
-            sync.start()
-            syncStarted = true
+            youtubeMusicSync.start()
+            musicSyncStarted = true
         } catch (t: Throwable) {
-            android.util.Log.w("MinimApp", "sync unavailable", t)
+            android.util.Log.w("MinimApp", "YouTube Music sync unavailable", t)
         }
         startVibe()
     }
 
-    // ---- 5.0.0 part 3: the cloud config (Firestore config/app) ------------------------------
-
-    /** Festivals, announcements, switches, extra greetings and the update lock. */
+    // Local feature defaults; no cloud configuration service is required.
     val vibe: com.minim.music.data.config.VibeConfigSource by lazy {
-        com.minim.music.data.config.VibeConfigSource(account)
+        com.minim.music.data.config.VibeConfigSource()
     }
 
     // ------------------------------------------------------------------------------------------
@@ -272,14 +270,11 @@ open class MinimApp : Application() {
                 vibe.config.collect { cfg ->
                     configGreetings = cfg.greetingFile()
                     publishGreetings()
-                    if (syncStarted) try {
-                        sync.setRemoteEnabled(cfg.isOn(com.minim.music.data.config.VibeConfig.SWITCH_SYNC))
-                    } catch (_: Throwable) { }
                 }
             }
             vibe.refresh()
         } catch (t: Throwable) {
-            android.util.Log.w("MinimApp", "cloud config unavailable", t)
+            android.util.Log.w("MinimApp", "local feature config unavailable", t)
         }
     }
 

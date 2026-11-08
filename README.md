@@ -26,9 +26,9 @@ It runs on Android 9 (API 28) and newer, and the app is about 9.1 MB.
 - **Volume boost:** Off, Normal or Loud, for songs that play too quietly.
 - **Bass boost (5.5.2):** Off, Warm, Punchy or Heavy in Settings, right under Volume boost. Warm adds 4 dB, Punchy 7 dB and Heavy 10 dB, centred on the kick and the bassline, while voices and mids stay put. It's built into Minim (not Android's bass booster), a limiter keeps it from crackling even with Volume boost on Loud, and switching stages slides in over half a second with no click.
 - **HD artwork:** covers load at the size each spot needs, up to full screen width.
-- **Optional Google sign-in (5.0):** Minim works fully without an account. Sign in from Settings if you want your music backed up and on more than one phone.
-- **Cloud sync (5.0):** while you're signed in, your likes, playlists, stats and play history sync, so Discover and your recommendations carry over to a new phone. The first sign-in merges what's on the phone with what's in your account, signing in with a different Google account asks whether to Merge or Start fresh, and changes made offline sync when you're back online. Settings stay on the phone.
-- **Festivals and announcements (5.0):** festival banners, colours and greetings, one-time announcements and feature switches can be set from a config document in Firestore, without a new build. See [FIREBASE_SETUP.md](FIREBASE_SETUP.md).
+- **YouTube Music account sync:** sign in to YouTube Music from Settings to keep liked songs aligned with your YouTube Music library. The session is encrypted with Android Keystore on this phone.
+- **Liked songs sync:** Minim imports liked songs from YouTube Music and sends new likes and unlikes back to the signed-in account. Playlists created inside Minim, listening statistics and settings stay on this phone.
+- **Festival themes:** theme artwork and greetings continue to come from the repository; app settings no longer depend on a cloud configuration service.
 - **Ask Gemini (5.2.0):** a chat with Google Gemini, opened from **Ask Gemini** under Search on Home or **Ask** next to Up next on Now Playing. It can find and play songs, queue them, like the song that's playing, open artist pages, translate or explain the lyrics, roast your listening stats and put together a playlist you can edit before saving. Replies are short and in any language. The chat is only kept while the app is open. Pick the model in Settings (Gemini 3.5 Flash-Lite by default, Gemini 3.1 Flash-Lite, or any model ID from Google AI Studio) and add your own free AI Studio key there if you like.
 - **Playlist import (5.3.0):** tap **Add playlist** in Library, then **Import Playlist**, and paste a YouTube or YouTube Music playlist, album or mix link, a Spotify playlist or album link, or a plain list of songs (one per line). You can also share a link to Minim from Spotify or YouTube Music. Spotify playlists are read from Spotify's public pages, with no login or key, up to 1,000 songs. The import runs in the background while you listen. Then you review the matches, pick another version for any song Minim isn't sure about or leave it out, and save it as a normal playlist.
 - **Editing playlists (5.3.2):** tap **+ Add songs** at the top of a playlist to search and add several songs in a row, and tap a playlist's name to rename it. Imported playlists show a small Spotify, YouTube Music or YouTube logo under the name, in the app's colours.
@@ -42,7 +42,7 @@ It runs on Android 9 (API 28) and newer, and the app is about 9.1 MB.
 
 ## Privacy
 
-Signing in is optional. Minim only gets your name, profile picture and email. It never sees your password and can't access your Gmail, Drive, contacts or anything else in your Google account. Sync stores only song IDs, song details (title, artist, cover link, length) and times under your own account, and **Delete account** in Settings removes all of it.
+Signing in is optional. The YouTube Music session is stored encrypted with a non-exportable Android Keystore key and is used only for liked-song sync. Minim does not collect or store your Google password. Playlists made inside Minim, settings and listening statistics stay on this phone.
 
 **Gemini chat:** chat messages go to Google Gemini; on the free tier Google may use them to improve its models. Only what you type, the song you attach and what Gemini asks Minim for (song details, lyrics, your likes, recent songs and listening stats) are sent. The chat isn't saved and is wiped when you close the app. Your own API key, if you add one, is encrypted on your phone, left out of Android backups, and never synced or logged.
 
@@ -74,11 +74,11 @@ echo "sdk.dir=/path/to/your/Android/Sdk" > local.properties   # or set ANDROID_H
 
 The APK lands in `app/build/outputs/apk/debug/app-debug.apk`. Run the unit tests with `./gradlew testDebugUnitTest`.
 
-### Firebase (optional)
+### YouTube Music sync
 
-Sign-in, sync and the config document need your own Firebase project. Without it the app builds and runs the same, and the Account section in Settings stays hidden. To turn it on, follow [FIREBASE_SETUP.md](FIREBASE_SETUP.md): create a Firebase project, put its `google-services.json` in `app/` (see `app/google-services.json.example`; the real file is ignored by git and must never be committed), and publish the rules in [`firestore.rules`](firestore.rules).
+Sign in to YouTube Music from Settings. Minim reads your liked songs and sends like/unlike changes directly to YouTube Music. The session is encrypted locally with Android Keystore. The liked-song connection uses YouTube Music's undocumented InnerTube interface and may need updates when Google changes it.
 
-The Gemini chat's built-in route uses Firebase AI Logic in the same project (step 4 in FIREBASE_SETUP.md). Without it, or without Firebase at all, the chat still works with your own key from [Google AI Studio](https://aistudio.google.com/apikey), added in Settings → Gemini. If your Firebase project enforces App Check on Firebase AI Logic, each phone needs its debug token added: copy it from Settings → Gemini → Your device token, then in the Firebase console go to App Check → Apps → your app → Manage debug tokens → Add. The token is kept on the phone only, never synced, backed up or logged.
+Gemini chat and lyric translation remain available with your personal Gemini API key entered in Settings.
 
 ### Signing
 
@@ -148,8 +148,8 @@ Festival wallpapers, Home colours, greetings and like bursts live in the [`theme
 - [LRCLib](https://lrclib.net) for synced lyrics
 - [AndroidX Media3 / ExoPlayer](https://github.com/androidx/media) for playback
 - [OkHttp](https://github.com/square/okhttp) for networking
-- [Firebase](https://firebase.google.com) Authentication and Cloud Firestore for the optional sign-in and sync
-- [Google Gemini](https://ai.google.dev) (Gemini API and Firebase AI Logic) for the chat
+- [Google Gemini](https://ai.google.dev) API for chat and lyric translation (personal API key)
+- YouTube Music InnerTube endpoints for liked-song sync (unofficial)
 - [Poppins](https://fonts.google.com/specimen/Poppins) font (SIL Open Font License)
 - [Simple Icons](https://simpleicons.org) for the one-colour Spotify, YouTube Music and YouTube logos (CC0; the logos are their owners' trademarks)
 

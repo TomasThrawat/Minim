@@ -77,15 +77,10 @@ import com.minim.music.ui.adapter.SearchResultsAdapter
 import com.minim.music.ui.adapter.TrackAdapter
 import com.minim.music.util.ArtworkPipeline
 import kotlinx.coroutines.Job
-import com.minim.music.data.account.AccountOutcome
-import com.minim.music.data.account.AccountProblem
-import com.minim.music.data.account.MinimAccount
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import com.minim.music.data.sync.CloudSync
-import com.minim.music.data.sync.SyncText
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -94,7 +89,6 @@ import com.minim.music.data.ai.ChatTools
 import com.minim.music.data.ai.GeminiChatSession
 import com.minim.music.data.ai.GeminiModels
 import com.minim.music.data.ai.GeminiRoute
-import com.minim.music.data.ai.AppCheckDebugToken
 import com.minim.music.data.ai.GeminiSettings
 import com.minim.music.data.ai.MinimActions
 import kotlin.math.abs
@@ -8221,7 +8215,7 @@ class MainActivity : AppCompatActivity() {
 
     // ==========================================================================================
     // 5.0.0 part 3: festivals, announcements, switches and the update lock, from the cloud
-    // config (Firestore config/app, read by app.vibe). Missing or unreadable config: none of it.
+    // Local feature defaults. Missing optional content never blocks playback.
     // ==========================================================================================
 
     private var vibe: VibeConfig = VibeConfig.DEFAULT
@@ -8401,297 +8395,72 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupAccount() {
-        val acc = app.account
-        val section = findViewById<View>(R.id.settings_account)
-        if (!acc.available) {
-            // A build without google-services.json (e.g. someone building the public repo)
-            section.visibility = View.GONE
-            return
+        findViewById<View>(R.id.settings_account).visibility = View.VISIBLE
+        findViewById<View>(R.id.account_sign_in).setOnClickListener { startYouTubeMusicSignIn() }
+        findViewById<View>(R.id.account_sign_out).setOnClickListener {
+            app.youtubeMusicAccount.signOut()
+            showNote(getString(R.string.account_signed_out_note))
         }
-        findViewById<View>(R.id.account_sign_in).setOnClickListener { v ->
-            if (accountBusy) return@setOnClickListener
-            haptic(v)
-            startSignIn()
-        }
-        findViewById<View>(R.id.account_sign_out).setOnClickListener { v ->
-            if (accountBusy) return@setOnClickListener
-            haptic(v)
-            accountBusy = true
-            lifecycleScope.launch {
-                // v5.0.0: send what's still waiting to the cloud first (a few seconds at most), then stop syncing
-                try { app.sync.prepareSignOut() } catch (_: Throwable) { }
-                acc.signOut()
-                accountBusy = false
-                showAccountMessage(null)
-                showNote(getString(R.string.account_signed_out_note))
-            }
-        }
-        findViewById<View>(R.id.account_delete).setOnClickListener { v ->
-            if (accountBusy) return@setOnClickListener
-            haptic(v)
-            confirmDeleteAccount()
-        }
-        // 5.0.0 part 2c: "Sync is waiting" opens the Merge / Start fresh sheet again
-        findViewById<View>(R.id.account_status).setOnClickListener { v ->
-            val c = app.sync.pendingChoice.value ?: return@setOnClickListener
-            haptic(v)
-            showAccountChoiceSheet(c)
+        findViewById<View>(R.id.account_sync_now).setOnClickListener {
+            lifecycleScope.launch { app.youtubeMusicSync.syncNow() }
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch { acc.user.collect { renderAccount(it); renderSyncStatus(app.sync.status.value) } }
-                // "Synced just now / X min ago", redrawn when it would read differently
-                launch {
-                    app.sync.status.collectLatest { st ->
-                        while (isActive) {
-                            renderSyncStatus(st)
-                            delay(SyncText.nextChangeMs(System.currentTimeMillis(), st.lastSyncAt))
-                        }
-                    }
-                }
-                // Signed in with a different Google account than the phone's music came from
-                launch {
-                    app.sync.pendingChoice.collect { c ->
-                        if (c == null) {
-                            choiceShownFor = null
-                            if (isChoiceSheetOpen) closeSheet()
-                        } else if (c != choiceShownFor) {
-                            choiceShownFor = c
-                            showAccountChoiceSheet(c)
-                        }
-                    }
-                }
-                // A pull brought changes from another phone: reload what shows the library
-                launch { app.sync.dataVersion.collect { onSyncedChanges(it) } }
+                launch { app.youtubeMusicAccount.session.collect { renderYouTubeMusicAccount(it) } }
+                launch { app.youtubeMusicSync.status.collect { renderYouTubeMusicSyncStatus(it) } }
             }
         }
+        renderYouTubeMusicAccount(app.youtubeMusicAccount.session.value)
+        renderYouTubeMusicSyncStatus(app.youtubeMusicSync.status.value)
     }
 
-    // ---- 5.0.0 part 2c: sync status, the account switch sheet, reloads after a pull ----------
-
-    private var choiceShownFor: CloudSync.Choice? = null
-    private var choiceSheetHeading: View? = null
-    private val isChoiceSheetOpen get() = isSheetOpen && choiceSheetHeading?.parent != null
-    /** The last [CloudSync.dataVersion] the screens were reloaded for (starts at the current one). */
-    private var seenDataVersion = -1L
-
-    /** The line under the name, and the error line under it. */
-    private fun renderSyncStatus(st: CloudSync.Status) {
-        val status = findViewById<TextView>(R.id.account_status) ?: return
-        val problem = findViewById<TextView>(R.id.account_sync_problem) ?: return
-        if (app.account.user.value == null) {
-            problem.visibility = View.GONE
-            return
-        }
-        val line = SyncText.statusLine(st.phase, st.lastSyncAt, System.currentTimeMillis())
-        if (status.text?.toString() != line) status.text = line
-        val waiting = st.phase == CloudSync.Phase.NEEDS_CHOICE
-        if (status.isClickable != waiting) {
-            status.isClickable = waiting
-            status.isFocusable = waiting
-        }
-        // waiting for a choice isn't an error; the line above says what to do
-        val err = if (waiting) null else SyncText.problemLine(st.problem)
-        if (err == null) {
-            if (problem.visibility != View.GONE) problem.visibility = View.GONE
-        } else {
-            if (problem.text?.toString() != err) problem.text = err
-            if (problem.visibility != View.VISIBLE) problem.visibility = View.VISIBLE
-        }
-    }
-
-    /** Merge / Start fresh / Cancel and sign out. Dismissing it leaves the question waiting. */
-    private fun showAccountChoiceSheet(c: CloudSync.Choice) {
-        val first = c.name.trim().substringBefore(' ')
-        val who = if (c.name == "this" || first.isBlank()) getString(R.string.account_choice_this)
-        else getString(R.string.account_choice_named, first)
-        openSheet { box ->
-            sheetHeading(box, getString(R.string.account_choice_title), getString(R.string.account_choice_sub, who), wrapSub = true)
-            choiceSheetHeading = box.getChildAt(box.childCount - 1)
-            sheetAction(box, R.drawable.ic_add, getString(R.string.account_choice_merge)) {
-                closeSheet()
-                if (app.sync.pendingChoice.value == c) app.sync.choose(merge = true)
-            }
-            sheetAction(box, R.drawable.ic_repeat, getString(R.string.account_choice_fresh)) {
-                closeSheet()
-                if (app.sync.pendingChoice.value == c) app.sync.choose(merge = false)
-            }
-            sheetAction(box, R.drawable.ic_close, getString(R.string.account_choice_cancel), outlined = true) {
-                closeSheet()
-                cancelAccountChoice()
-            }
-        }
-    }
-
-    /** Cancel: nothing on the phone changes, nothing syncs, and Minim signs out of that account. */
-    private fun cancelAccountChoice() {
+    private fun startYouTubeMusicSignIn() {
         if (accountBusy) return
         accountBusy = true
+        val button = findViewById<TextView>(R.id.account_sign_in)
+        button.isEnabled = false
+        button.text = getString(R.string.account_signing_in)
         lifecycleScope.launch {
-            try {
-                app.sync.cancelChoice()
-                app.account.signOut()
-                showAccountMessage(null)
-                showNote(getString(R.string.account_signed_out_note))
-            } catch (_: Throwable) {
-            } finally {
-                accountBusy = false
-            }
-        }
-    }
-
-    /**
-     * The library changed under the screens (a pull from another phone, or Start fresh). Liked,
-     * Recents, playlists, the open list, Stats and the greetings reload in place (the lists diff, so
-     * scroll positions stay). Discover drops songs marked "not interested" elsewhere right away; its
-     * shelves are rebuilt only when it has none yet, or after a whole-library merge, and then not
-     * while it's on screen (the next time the tab opens).
-     */
-    private fun onSyncedChanges(version: Long) {
-        if (seenDataVersion < 0L || version <= seenDataVersion) {
-            if (seenDataVersion < 0L) seenDataVersion = version
-            return
-        }
-        seenDataVersion = version
-        val full = app.sync.lastChangeWasFull
-        greetingFactsAt = 0L
-        scheduleRefresh(300L)
-        lifecycleScope.launch {
-            try {
-                val engine = app.discoverEngine
-                engine.dropHidden(app.database.notInterestedIds.value)?.let { if (discoverShelves.isNotEmpty()) showDiscover(it, afterBuild = false) }
-                if (full) engine.markStale()
-                if (isSearchOpen && discoverShelves.isEmpty()) loadDiscover(force = false)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    private fun startSignIn() {
-        val signIn = findViewById<TextView>(R.id.account_sign_in)
-        accountBusy = true
-        showAccountMessage(null)
-        signIn.text = getString(R.string.account_signing_in)
-        signIn.alpha = 0.6f
-        lifecycleScope.launch {
-            val outcome = app.account.signIn(this@MainActivity)
+            val signedIn = try { app.youtubeMusicAccount.signIn(this@MainActivity) } catch (_: Exception) { false }
             accountBusy = false
-            signIn.text = getString(R.string.account_sign_in)
-            signIn.alpha = 1f
-            when (outcome) {
-                is AccountOutcome.Done -> {
-                    val name = app.account.user.value?.name.orEmpty()
-                    showNote(
-                        if (name.isNotBlank()) getString(R.string.account_signed_in_as, name.substringBefore(' '))
-                        else getString(R.string.account_signed_in_note)
-                    )
-                }
-                is AccountOutcome.Problem -> showAccountMessage(accountProblemText(outcome.problem, deleting = false))
+            button.isEnabled = true
+            button.text = getString(R.string.account_sign_in)
+            if (signedIn) {
+                findViewById<TextView>(R.id.account_message).visibility = View.GONE
+                showNote(getString(R.string.account_signed_in_note))
+            } else if (app.youtubeMusicAccount.session.value == null) {
+                showAccountMessage(getString(R.string.account_err_failed))
             }
         }
     }
 
-    private fun confirmDeleteAccount() {
-        openSheet { box ->
-            sheetHeading(box, getString(R.string.account_delete_title), getString(R.string.account_delete_sub))
-            val v = layoutInflater.inflate(R.layout.sheet_confirm, box, false)
-            v.findViewById<TextView>(R.id.sheet_confirm_cancel).setOnClickListener { closeSheet() }
-            v.findViewById<TextView>(R.id.sheet_confirm_ok).apply {
-                text = getString(R.string.account_delete_ok)
-                setOnClickListener {
-                    if (sheetClosing || accountBusy) return@setOnClickListener
-                    haptic(it)
-                    closeSheet()
-                    deleteAccountNow()
-                }
-            }
-            box.addView(v)
+    private fun renderYouTubeMusicAccount(session: com.minim.music.data.account.YouTubeMusicAccount.Session?) {
+        val signedIn = session != null
+        findViewById<View>(R.id.account_signed_out).visibility = if (signedIn) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.account_signed_in).visibility = if (signedIn) View.VISIBLE else View.GONE
+        if (session != null) {
+            findViewById<TextView>(R.id.account_name).text = session.displayName
+            findViewById<com.minim.music.ui.AvatarView>(R.id.account_avatar).setPhoto(null, false)
         }
     }
 
-    private fun deleteAccountNow() {
-        val delete = findViewById<TextView>(R.id.account_delete)
-        val signOut = findViewById<View>(R.id.account_sign_out)
-        accountBusy = true
-        showAccountMessage(null)
-        delete.text = getString(R.string.account_deleting)
-        delete.alpha = 0.6f
-        signOut.alpha = 0.6f
-        lifecycleScope.launch {
-            // v5.0.0: pause sync so nothing is written back while the cloud data is deleted
-            try { app.sync.prepareDelete() } catch (_: Throwable) { }
-            val outcome = app.account.deleteAccount(this@MainActivity)
-            try { app.sync.afterDelete(deleted = outcome is AccountOutcome.Done) } catch (_: Throwable) { }
-            accountBusy = false
-            delete.text = getString(R.string.account_delete)
-            delete.alpha = 1f
-            signOut.alpha = 1f
-            when (outcome) {
-                is AccountOutcome.Done -> showNote(getString(R.string.account_deleted_note))
-                is AccountOutcome.Problem -> showAccountMessage(accountProblemText(outcome.problem, deleting = true))
-            }
+    private fun renderYouTubeMusicSyncStatus(status: com.minim.music.data.account.YouTubeMusicSync.Status) {
+        val signedIn = app.youtubeMusicAccount.session.value != null
+        findViewById<TextView>(R.id.account_status).apply {
+            text = status.message
+            visibility = if (signedIn) View.VISIBLE else View.GONE
+        }
+        findViewById<TextView>(R.id.account_sync_problem).apply {
+            text = status.error.orEmpty()
+            visibility = if (signedIn && !status.error.isNullOrBlank()) View.VISIBLE else View.GONE
         }
     }
 
-    private fun accountProblemText(problem: AccountProblem, deleting: Boolean): String = getString(
-        when (problem) {
-            AccountProblem.CANCELLED ->
-                if (deleting) R.string.account_err_delete_cancelled else R.string.account_err_cancelled
-            AccountProblem.OFFLINE -> R.string.account_err_offline
-            AccountProblem.NO_ACCOUNT -> R.string.account_err_no_account
-            AccountProblem.UNAVAILABLE -> R.string.account_err_unavailable
-            AccountProblem.NOT_READY -> R.string.account_err_not_ready
-            AccountProblem.WRONG_ACCOUNT -> R.string.account_err_wrong_account
-            AccountProblem.FAILED ->
-                if (deleting) R.string.account_err_delete_failed else R.string.account_err_failed
+    private fun showAccountMessage(message: String) {
+        findViewById<TextView>(R.id.account_message).apply {
+            text = message
+            visibility = View.VISIBLE
         }
-    )
-
-    /** One short line under the Account buttons; null hides it. */
-    private fun showAccountMessage(text: String?) {
-        val msg = findViewById<TextView>(R.id.account_message)
-        msg.text = text.orEmpty()
-        msg.visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
-    }
-
-    /** Signed in or out: the Settings section and every profile picture follow. */
-    private fun renderAccount(user: MinimAccount.User?) {
-        findViewById<View>(R.id.account_signed_out).visibility = if (user == null) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.account_signed_in).visibility = if (user == null) View.GONE else View.VISIBLE
-        if (user != null) {
-            findViewById<TextView>(R.id.account_name).text =
-                user.name.ifBlank { getString(R.string.account_signed_in_note) }
-        }
-        val url = user?.photoUrl
-        val loaded = avatars().all { it.hasPhoto }
-        if (url == avatarUrl && (url == null || loaded || avatarJob?.isActive == true)) return
-        avatarUrl = url
-        avatarJob?.cancel()
-        if (url == null) {
-            setAvatarPhoto(null, animate = false)
-            return
-        }
-        val px = dp(56f).toInt()
-        val cached = app.artworkPipeline.cachedBitmap(url, px)
-        if (cached != null) {
-            setAvatarPhoto(cached, animate = false)
-            return
-        }
-        setAvatarPhoto(null, animate = false)
-        // Offline before the photo was ever saved: the placeholder stays, and the next time Minim comes
-        // back to the front this runs again and retries.
-        avatarJob = lifecycleScope.launch {
-            val bitmap = app.artworkPipeline.loadBitmap(url, px)
-            if (avatarUrl == url && bitmap != null) setAvatarPhoto(bitmap, animate = animationsOn())
-        }
-    }
-
-    private fun avatars(): List<AvatarView> = topRows.map { it.second.gear } + findViewById<AvatarView>(R.id.account_avatar)
-
-    private fun setAvatarPhoto(bitmap: android.graphics.Bitmap?, animate: Boolean) {
-        for (a in avatars()) a.setPhoto(bitmap, animate)
     }
 
     // ==========================================================================================
@@ -8911,22 +8680,6 @@ class MainActivity : AppCompatActivity() {
             renderGeminiSettings()
             showNote(getString(R.string.set_gemini_key_removed))
         }
-        // 5.3.2: copy this phone's App Check debug token (never logged, never synced)
-        findViewById<View>(R.id.set_gemini_token_copy).setOnClickListener { v ->
-            haptic(v)
-            val token = AppCheckDebugToken.get(this)
-            try {
-                val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                val clip = android.content.ClipData.newPlainText(getString(R.string.set_gemini_token), token)
-                // Android 13+: keep it out of the clipboard preview pop-up
-                clip.description.extras = android.os.PersistableBundle().apply {
-                    putBoolean("android.content.extra.IS_SENSITIVE", true)
-                }
-                cm?.setPrimaryClip(clip)
-                showNote(getString(R.string.set_gemini_token_copied))
-            } catch (_: Exception) {
-            }
-        }
     }
 
     private fun renderGeminiSettings() {
@@ -8943,16 +8696,6 @@ class MainActivity : AppCompatActivity() {
             if (key != null) R.string.set_gemini_key_change else R.string.set_gemini_key_add
         )
         findViewById<View>(R.id.set_gemini_key_remove).visibility = if (s.hasApiKey) View.VISIBLE else View.GONE
-        // 5.3.2: the device token only matters for the built-in route (needs the Firebase file)
-        val builtIn = GeminiRoute.hasBuiltIn(this)
-        findViewById<View>(R.id.set_gemini_token_box).visibility = if (builtIn) View.VISIBLE else View.GONE
-        if (builtIn) {
-            val token = AppCheckDebugToken.get(this)
-            findViewById<TextView>(R.id.set_gemini_token_value).apply {
-                text = token
-                contentDescription = getString(R.string.set_gemini_token_desc, token.takeLast(4))
-            }
-        }
     }
 
     /** The model dropdown: the two Flash-Lite models, or Custom (any AI Studio model ID). */

@@ -17,9 +17,6 @@ import java.util.concurrent.TimeUnit
 /**
  * v5.2.0: where a chat request goes.
  * - [direct]: your own AI Studio key, straight to Google's Gemini API.
- * - [firebase]: Minim's built-in route, Firebase AI Logic on Minim's Firebase project. Its
- *   project ID and key are read at runtime from the private Firebase file, so nothing
- *   secret is in the public code.
  */
 data class GeminiEndpoint(
     val url: String,
@@ -32,8 +29,6 @@ data class GeminiEndpoint(
 
     companion object {
         const val DIRECT_BASE = "https://generativelanguage.googleapis.com/v1beta"
-        const val FIREBASE_BASE = "https://firebasevertexai.googleapis.com/v1beta"
-
         fun direct(model: String, apiKey: String, base: String = DIRECT_BASE) = GeminiEndpoint(
             url = "$base/models/$model:streamGenerateContent?alt=sse",
             headers = mapOf("x-goog-api-key" to apiKey),
@@ -41,29 +36,7 @@ data class GeminiEndpoint(
             model = model,
         )
 
-        fun firebase(
-            model: String,
-            projectId: String,
-            apiKey: String,
-            appId: String?,
-            packageName: String?,
-            certSha1: String?,
-            appCheckToken: String? = null,
-            base: String = FIREBASE_BASE,
-        ): GeminiEndpoint {
-            val h = linkedMapOf("x-goog-api-key" to apiKey)
-            if (!appId.isNullOrBlank()) h["X-Firebase-AppId"] = appId
-            // v5.3.2: App Check (debug provider), see AppCheckDebug.kt
-            if (!appCheckToken.isNullOrBlank()) h["X-Firebase-AppCheck"] = appCheckToken
-            if (!packageName.isNullOrBlank()) h["X-Android-Package"] = packageName
-            if (!certSha1.isNullOrBlank()) h["X-Android-Cert"] = certSha1
-            return GeminiEndpoint(
-                url = "$base/projects/$projectId/models/$model:streamGenerateContent?alt=sse",
-                headers = h,
-                ownKey = false,
-                model = model,
-            )
-        }
+
     }
 }
 
