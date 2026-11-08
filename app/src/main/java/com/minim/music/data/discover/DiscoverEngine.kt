@@ -143,9 +143,9 @@ class DiscoverEngine(
             built.shelves.isEmpty() && built.hasHistory && previous != null && previous.shelves.isNotEmpty() -> previous
             else -> built
         }
-        if (result === built && built != null) {
-            memory = built
-            withContext(Dispatchers.IO) { writeCache(built) }
+        if (result === built) {
+            memory = result
+            withContext(Dispatchers.IO) { writeCache(result) }
         }
         result
     }

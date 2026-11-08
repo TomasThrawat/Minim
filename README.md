@@ -26,7 +26,7 @@ It runs on Android 9 (API 28) and newer, and the app is about 9.1 MB.
 - **Volume boost:** Off, Normal or Loud, for songs that play too quietly.
 - **Bass boost (5.5.2):** Off, Warm, Punchy or Heavy in Settings, right under Volume boost. Warm adds 4 dB, Punchy 7 dB and Heavy 10 dB, centred on the kick and the bassline, while voices and mids stay put. It's built into Minim (not Android's bass booster), a limiter keeps it from crackling even with Volume boost on Loud, and switching stages slides in over half a second with no click.
 - **HD artwork:** covers load at the size each spot needs, up to full screen width.
-- **YouTube Music account sync:** sign in to YouTube Music from Settings to keep liked songs aligned with your YouTube Music library. The session is encrypted with Android Keystore on this phone.
+- **YouTube Music account sync:** connect a Google account from Settings using the system authorization flow. Access tokens stay in memory; Minim does not embed a Google password page or persist Google access tokens.
 - **Liked songs sync:** Minim imports liked songs from YouTube Music and sends new likes and unlikes back to the signed-in account. Playlists created inside Minim, listening statistics and settings stay on this phone.
 - **Festival themes:** theme artwork and greetings continue to come from the repository; app settings no longer depend on a cloud configuration service.
 - **Ask Gemini (5.2.0):** a chat with Google Gemini, opened from **Ask Gemini** under Search on Home or **Ask** next to Up next on Now Playing. It can find and play songs, queue them, like the song that's playing, open artist pages, translate or explain the lyrics, roast your listening stats and put together a playlist you can edit before saving. Replies are short and in any language. The chat is only kept while the app is open. Pick the model in Settings (Gemini 3.5 Flash-Lite by default, Gemini 3.1 Flash-Lite, or any model ID from Google AI Studio) and add your own free AI Studio key there if you like.
@@ -42,7 +42,7 @@ It runs on Android 9 (API 28) and newer, and the app is about 9.1 MB.
 
 ## Privacy
 
-Signing in is optional. The YouTube Music session is stored encrypted with a non-exportable Android Keystore key and is used only for liked-song sync. Minim does not collect or store your Google password. Playlists made inside Minim, settings and listening statistics stay on this phone.
+Signing in is optional. Google authorization is handled by Google Play services. Access tokens are kept in memory only and are not written to app preferences, backups or logs. Minim stores a one-way hashed account identifier and a connection flag locally so queued likes remain assigned to the same account. Minim never collects or stores your Google password. Playlists made inside Minim, settings and listening statistics stay on this phone.
 
 **Gemini chat:** chat messages go to Google Gemini; on the free tier Google may use them to improve its models. Only what you type, the song you attach and what Gemini asks Minim for (song details, lyrics, your likes, recent songs and listening stats) are sent. The chat isn't saved and is wiped when you close the app. Your own API key, if you add one, is encrypted on your phone, left out of Android backups, and never synced or logged.
 
@@ -76,7 +76,17 @@ The APK lands in `app/build/outputs/apk/debug/app-debug.apk`. Run the unit tests
 
 ### YouTube Music sync
 
-Sign in to YouTube Music from Settings. Minim reads your liked songs and sends like/unlike changes directly to YouTube Music. The session is encrypted locally with Android Keystore. The liked-song connection uses YouTube Music's undocumented InnerTube interface and may need updates when Google changes it.
+Minim uses Google's Android authorization flow and requests the YouTube account scope. To test the connection with your own build:
+
+1. Create a Google Cloud project and configure its OAuth consent screen. Add your Google account as a test user while the consent screen is in testing mode.
+2. Create an **Android** OAuth client for the debug application ID `com.minim.music.debug` and the exact SHA-1 signing-certificate fingerprint used by that build.
+3. Create a second Android OAuth client for the release application ID `com.minim.music` and the release signing-certificate fingerprint if you will test or distribute a release build.
+4. Get the local signing fingerprints with `./gradlew signingReport`. A GitHub Actions debug APK is signed by the runner's temporary debug key, so its fingerprint will not match your own local debug keystore.
+5. Install a build signed with the certificate registered for its package name, then connect the account in Settings and approve the requested YouTube permission.
+
+Do not put an OAuth client secret or a Google password in the app. Minim keeps the access token in memory only and uses the system authorization flow; it does not store a refresh token. Google may require OAuth verification before a public app can request sensitive scopes from general users.
+
+The liked-music list is read and changed through YouTube Music's undocumented InnerTube interface, not a supported public YouTube Music API. It can change without notice. The official YouTube Data API exposes YouTube video ratings, which are not guaranteed to be the same list as YouTube Music liked songs, so Minim does not substitute that list for Music likes. Verify the login and a like/unlike round trip on a correctly signed device build before relying on sync.
 
 Gemini chat and lyric translation remain available with your personal Gemini API key entered in Settings.
 

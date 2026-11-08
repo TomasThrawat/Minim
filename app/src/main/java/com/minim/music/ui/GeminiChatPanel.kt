@@ -278,9 +278,14 @@ class GeminiChatPanel(
             if (savedSoftInput != null) return
             val mode = window.attributes.softInputMode
             savedSoftInput = mode
+            @Suppress("DEPRECATION")
+            val adjustMode = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            } else {
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
             window.setSoftInputMode(
-                (mode and WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv()) or
-                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                (mode and WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv()) or adjustMode
             )
         } else {
             val mode = savedSoftInput ?: return

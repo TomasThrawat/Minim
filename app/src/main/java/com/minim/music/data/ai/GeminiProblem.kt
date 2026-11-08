@@ -48,9 +48,6 @@ object GeminiErrors {
         val serviceOff = reasons.any { it == "SERVICE_DISABLED" || it == "ACCESS_TOKEN_SCOPE_INSUFFICIENT" } ||
             msg.contains("has not been used in project") || msg.contains("is disabled")
 
-        // v5.3.2: the built-in route refused the App Check token (or got none)
-        val appCheck = msg.contains("app check") || msg.contains("appcheck") || msg.contains("attestation")
-
         return when {
             httpCode == 429 || status == "RESOURCE_EXHAUSTED" -> GeminiProblem.Quota
             msg.contains("location is not supported") -> GeminiProblem.Region

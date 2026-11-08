@@ -13,7 +13,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import java.security.MessageDigest
 
 /** Keeps Minim's liked list aligned with the signed-in YouTube Music account. */
 class YouTubeMusicSync(
@@ -57,18 +56,19 @@ class YouTubeMusicSync(
         mutex.withLock {
             _status.value = Status("Syncing liked songs…")
             try {
+                claimUnassignedLikes(session.accountKey)
                 flushPending(session)
                 var remote = api.fetchLikedSongs(session)
-                val accountKey = accountKey(session)
-                val initialKey = "initial_$accountKey"
+                val initialKey = "initial_${session.accountKey}"
                 if (!prefs.getBoolean(initialKey, false)) {
                     val remoteIds = remote.mapTo(HashSet()) { it.id }
                     val localOnly = database.getLikedTracks().filterNot { it.id in remoteIds }
-                    for (track in localOnly) enqueuePending(track.id, true)
+                    for (track in localOnly) enqueuePendingForAccount(session.accountKey, track.id, true)
                     flushPending(session)
                     remote = api.fetchLikedSongs(session)
                     prefs.edit().putBoolean(initialKey, true).apply()
                 }
+                if (account.session.value?.accountKey != session.accountKey) return@withLock
                 database.applyYouTubeMusicLikedTracks(remote, replaceExisting = true)
                 _status.value = Status("Liked songs synced", syncedAt = System.currentTimeMillis())
             } catch (error: Exception) {
@@ -78,47 +78,61 @@ class YouTubeMusicSync(
     }
 
     private fun queueLike(track: Track, liked: Boolean) {
-        enqueuePending(track.id, liked)
-        if (account.session.value != null) scope.launch { syncNow() }
+        val owner = PendingLikeQueue.ownerForChange(account.session.value?.accountKey, account.lastAccountKey())
+        enqueuePendingForAccount(owner, track.id, liked)
+        if (account.session.value?.accountKey == owner) scope.launch { syncNow() }
     }
 
-    /** Keeps likes and unlikes made while signed out/offline until a YouTube account is available. */
-    private fun enqueuePending(videoId: String, liked: Boolean) = synchronized(pendingLock) {
-        val entries = prefs.getStringSet(PENDING_KEY, emptySet()).orEmpty().toMutableSet()
+    /** Claim pre-account local edits once, on the first account only. */
+    private fun claimUnassignedLikes(accountKey: String) = synchronized(pendingLock) {
+        if (prefs.getBoolean(HAS_CONNECTED_ACCOUNT, false)) return@synchronized
+        val unassignedKey = PendingLikeQueue.preferenceKey(PendingLikeQueue.UNASSIGNED_ACCOUNT)
+        val targetKey = PendingLikeQueue.preferenceKey(accountKey)
+        val unassigned = prefs.getStringSet(unassignedKey, emptySet()).orEmpty().toSet()
+        if (unassigned.isNotEmpty()) {
+            val target = prefs.getStringSet(targetKey, emptySet()).orEmpty().toMutableSet()
+            target.addAll(unassigned)
+            prefs.edit().putStringSet(targetKey, target).remove(unassignedKey).apply()
+        }
+        prefs.edit().putBoolean(HAS_CONNECTED_ACCOUNT, true).apply()
+    }
+
+    private fun enqueuePendingForAccount(owner: String, videoId: String, liked: Boolean) = synchronized(pendingLock) {
+        val key = PendingLikeQueue.preferenceKey(owner)
+        val entries = prefs.getStringSet(key, emptySet()).orEmpty().toMutableSet()
         entries.removeAll { it.substringBeforeLast('|', "") == videoId }
         entries.add("$videoId|${if (liked) 1 else 0}")
-        prefs.edit().putStringSet(PENDING_KEY, entries).apply()
+        prefs.edit().putStringSet(key, entries).apply()
     }
 
     private suspend fun flushPending(session: YouTubeMusicAccount.Session) {
+        val key = PendingLikeQueue.preferenceKey(session.accountKey)
         val pending = synchronized(pendingLock) {
-            prefs.getStringSet(PENDING_KEY, emptySet()).orEmpty().toList()
+            prefs.getStringSet(key, emptySet()).orEmpty().toList()
         }
         for (entry in pending) {
+            if (account.session.value?.accountKey != session.accountKey) return
             val split = entry.lastIndexOf('|')
             if (split <= 0) {
-                removePending(entry)
+                removePending(key, entry)
                 continue
             }
             val id = entry.substring(0, split)
             val liked = entry.substring(split + 1) == "1"
             api.setLiked(session, id, liked)
-            removePending(entry)
+            removePending(key, entry)
             delay(100L)
         }
     }
 
-    private fun removePending(entry: String) = synchronized(pendingLock) {
-        val entries = prefs.getStringSet(PENDING_KEY, emptySet()).orEmpty().toMutableSet()
+    private fun removePending(key: String, entry: String) = synchronized(pendingLock) {
+        val entries = prefs.getStringSet(key, emptySet()).orEmpty().toMutableSet()
         entries.remove(entry)
-        prefs.edit().putStringSet(PENDING_KEY, entries).apply()
+        prefs.edit().putStringSet(key, entries).apply()
     }
 
-    private fun accountKey(session: YouTubeMusicAccount.Session): String {
-        val raw = session.accountKey().ifBlank { session.cookie }
-        return MessageDigest.getInstance("SHA-256").digest(raw.toByteArray(Charsets.UTF_8))
-            .take(12).joinToString("") { "%02x".format(it) }
+    companion object {
+        private const val PREFS = "youtube_music_sync"
+        private const val HAS_CONNECTED_ACCOUNT = "has_connected_account"
     }
-
-    companion object { private const val PREFS = "youtube_music_sync"; private const val PENDING_KEY = "pending_likes" }
 }

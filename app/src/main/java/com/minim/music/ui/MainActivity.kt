@@ -10,6 +10,7 @@ import com.minim.music.data.update.AvailableUpdate
 import com.minim.music.data.update.UpdateCheckResult
 import com.minim.music.data.update.UpdateFlowState
 import android.Manifest
+import android.app.Activity
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
@@ -38,6 +39,8 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -108,6 +111,23 @@ import kotlin.math.roundToInt
 class MainActivity : AppCompatActivity() {
 
     private val app: MinimApp by lazy { MinimApp.instance }
+    private var youtubeMusicAuthorizationInProgress = false
+    private val youtubeMusicAuthorizationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            showAccountMessage(getString(R.string.account_err_cancelled))
+        } else {
+            lifecycleScope.launch {
+                try {
+                    app.youtubeMusicAccount.completeAuthorization(this@MainActivity, result.data)
+                    findViewById<TextView>(R.id.account_message).visibility = View.GONE
+                } catch (error: Exception) {
+                    showAccountMessage(error.message ?: getString(R.string.account_err_failed))
+                }
+            }
+        }
+    }
 
     private enum class Tab { HOME, STORIES, STATS, LIBRARY }
 
@@ -412,6 +432,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (showingCrashReport) return
+        if (app.youtubeMusicAccount.hasStoredAuthorization()) refreshYouTubeMusicAuthorization()
         if (::fsLyrics.isInitialized) fsLyrics.setHostVisible(true)
         // v4.9.9: the Now Playing lyric line's Flow frames too
         if (::npLyric.isInitialized) npLyric.setHostVisible(true)
@@ -3518,11 +3539,11 @@ class MainActivity : AppCompatActivity() {
                             mark.animate().scaleX(1f).scaleY(1f).setDuration(180L)
                                 .setInterpolator(DecelerateInterpolator()).start()
                         }
-                        lifecycleScope.launch {
+                        lifecycleScope.launch(addTrackToPlaylist@{
                             app.database.addTrackToPlaylist(playlistId, t)
                             if (openListId == playlistId) refreshOpenList()
                             refreshData()
-                        }
+                        })
                     }
                     mark.setOnClickListener(add)
                     card.setOnClickListener(add)
@@ -3537,13 +3558,13 @@ class MainActivity : AppCompatActivity() {
                     searchJob?.cancel()
                     results.removeAllViews()
                     setStatus(null)
-                    searchJob = lifecycleScope.launch {
+                    searchJob = lifecycleScope.launch(showStart@{
                         val recent = app.database.getRecentTracks(12)
                         val liked = app.database.getLikedSongs().take(30)
-                        if (gen != generation) return@launch
+                        if (gen != generation) return@showStart
                         if (recent.isEmpty() && liked.isEmpty()) {
                             setStatus(getString(R.string.add_songs_nothing_yet))
-                            return@launch
+                            return@showStart
                         }
                         if (recent.isNotEmpty()) {
                             label(getString(R.string.add_songs_recent))
@@ -3553,7 +3574,7 @@ class MainActivity : AppCompatActivity() {
                             label(getString(R.string.add_songs_liked))
                             liked.forEach { row(it) }
                         }
-                    }
+                    })
                 }
 
                 fun search(query: String, delayMs: Long) {
@@ -8398,7 +8419,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.settings_account).visibility = View.VISIBLE
         findViewById<View>(R.id.account_sign_in).setOnClickListener { startYouTubeMusicSignIn() }
         findViewById<View>(R.id.account_sign_out).setOnClickListener {
-            app.youtubeMusicAccount.signOut()
+            app.youtubeMusicAccount.signOut(this@MainActivity)
             showNote(getString(R.string.account_signed_out_note))
         }
         findViewById<View>(R.id.account_sync_now).setOnClickListener {
@@ -8414,22 +8435,48 @@ class MainActivity : AppCompatActivity() {
         renderYouTubeMusicSyncStatus(app.youtubeMusicSync.status.value)
     }
 
+    private fun refreshYouTubeMusicAuthorization() {
+        if (youtubeMusicAuthorizationInProgress || accountBusy || isFinishing) return
+        youtubeMusicAuthorizationInProgress = true
+        lifecycleScope.launch {
+            try {
+                when (app.youtubeMusicAccount.authorize(this@MainActivity)) {
+                    is com.minim.music.data.account.YouTubeMusicAccount.AuthorizationStep.Authorized -> Unit
+                    is com.minim.music.data.account.YouTubeMusicAccount.AuthorizationStep.NeedsConsent ->
+                        Unit // Do not open a consent screen unless the user taps Connect / Sync.
+                }
+            } catch (error: Exception) {
+                android.util.Log.w("Minim", "YouTube Music authorization refresh failed", error)
+            } finally {
+                youtubeMusicAuthorizationInProgress = false
+            }
+        }
+    }
+
     private fun startYouTubeMusicSignIn() {
-        if (accountBusy) return
+        if (accountBusy || youtubeMusicAuthorizationInProgress) return
         accountBusy = true
         val button = findViewById<TextView>(R.id.account_sign_in)
         button.isEnabled = false
         button.text = getString(R.string.account_signing_in)
         lifecycleScope.launch {
-            val signedIn = try { app.youtubeMusicAccount.signIn(this@MainActivity) } catch (_: Exception) { false }
-            accountBusy = false
-            button.isEnabled = true
-            button.text = getString(R.string.account_sign_in)
-            if (signedIn) {
-                findViewById<TextView>(R.id.account_message).visibility = View.GONE
-                showNote(getString(R.string.account_signed_in_note))
-            } else if (app.youtubeMusicAccount.session.value == null) {
-                showAccountMessage(getString(R.string.account_err_failed))
+            try {
+                when (val step = app.youtubeMusicAccount.authorize(this@MainActivity)) {
+                    is com.minim.music.data.account.YouTubeMusicAccount.AuthorizationStep.Authorized -> {
+                        showNote(getString(R.string.account_signed_in_note))
+                    }
+                    is com.minim.music.data.account.YouTubeMusicAccount.AuthorizationStep.NeedsConsent -> {
+                        youtubeMusicAuthorizationLauncher.launch(
+                            IntentSenderRequest.Builder(step.pendingIntent.intentSender).build()
+                        )
+                    }
+                }
+            } catch (error: Exception) {
+                showAccountMessage(error.message ?: getString(R.string.account_err_failed))
+            } finally {
+                accountBusy = false
+                button.isEnabled = true
+                button.text = getString(R.string.account_sign_in)
             }
         }
     }

@@ -1,206 +1,139 @@
 package com.minim.music.data.account
 
-import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.Dialog
-import android.net.Uri
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Base64
-import android.webkit.CookieManager
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import kotlinx.coroutines.suspendCancellableCoroutine
+import android.content.Context
+import android.content.Intent
+import android.app.PendingIntent
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.auth.api.identity.RevokeAccessRequest
+import com.google.android.gms.common.api.Scope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONObject
-import org.json.JSONTokener
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
-import kotlin.coroutines.resume
+import java.io.IOException
+import java.security.MessageDigest
 
-/** A YouTube Music web session, stored encrypted with a non-exportable Android Keystore key. */
-class YouTubeMusicAccount(activityContext: android.content.Context) {
+/** Google OAuth session for the YouTube Music library. Access tokens stay in memory only. */
+class YouTubeMusicAccount(
+    context: Context,
+    private val httpClient: OkHttpClient,
+) {
     data class Session(
-        val cookie: String,
-        val apiKey: String,
-        val clientVersion: String,
-        val visitorData: String,
-        val authUser: String,
-        val dataSyncId: String,
+        val accessToken: String,
+        val accountKey: String,
         val displayName: String,
-        val userAgent: String,
-    ) {
-        internal fun toJson() = JSONObject()
-            .put("cookie", cookie)
-            .put("apiKey", apiKey)
-            .put("clientVersion", clientVersion)
-            .put("visitorData", visitorData)
-            .put("authUser", authUser)
-            .put("dataSyncId", dataSyncId)
-            .put("displayName", displayName)
-            .put("userAgent", userAgent)
+    )
 
-        internal fun accountKey(): String = dataSyncId
+    sealed interface AuthorizationStep {
+        data class Authorized(val session: Session) : AuthorizationStep
+        data class NeedsConsent(val pendingIntent: PendingIntent) : AuthorizationStep
     }
 
-    private val context = activityContext.applicationContext
-    private val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
-    private val _session = MutableStateFlow(loadSession())
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val _session = MutableStateFlow<Session?>(null)
     val session: StateFlow<Session?> = _session.asStateFlow()
 
-    /** Opens YouTube Music's own sign-in flow. Credentials are entered only on Google's page. */
-    @SuppressLint("SetJavaScriptEnabled")
-    suspend fun signIn(activity: Activity): Boolean = suspendCancellableCoroutine { continuation ->
-        val dialog = Dialog(activity)
-        val webView = WebView(activity)
-        var finished = false
-        var extractionAttempts = 0
-
-        fun finish(result: Session?) {
-            if (finished) return
-            finished = true
-            if (result != null) {
-                saveSession(result)
-                _session.value = result
-            }
-            runCatching { webView.stopLoading() }
-            runCatching { webView.removeAllViews() }
-            runCatching { webView.destroy() }
-            if (dialog.isShowing) dialog.dismiss()
-            if (continuation.isActive) continuation.resume(result != null)
+    init {
+        // Remove the obsolete locally encrypted session and its device key after upgrading.
+        prefs.edit().remove(LEGACY_SESSION_KEY).apply()
+        runCatching {
+            val store = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (store.containsAlias(LEGACY_KEY_ALIAS)) store.deleteEntry(LEGACY_KEY_ALIAS)
         }
-
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        CookieManager.getInstance().setAcceptCookie(true)
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String?) {
-                if (finished || Uri.parse(url.orEmpty()).host != MUSIC_HOST) return
-                val cookie = CookieManager.getInstance().getCookie(MUSIC_ORIGIN).orEmpty()
-                if (cookieValue(cookie, "SAPISID").isNullOrBlank() &&
-                    cookieValue(cookie, "__Secure-3PAPISID").isNullOrBlank()) return
-                fun extractSession() {
-                    if (finished) return
-                    view.evaluateJavascript(SESSION_SCRIPT) { encoded ->
-                        if (finished) return@evaluateJavascript
-                        val raw = encoded?.let { runCatching { JSONTokener(it).nextValue() as? String }.getOrNull() }
-                        val values = raw?.let { runCatching { JSONObject(it) }.getOrNull() }
-                        val apiKey = values?.optString("apiKey").orEmpty()
-                        val clientVersion = values?.optString("clientVersion").orEmpty()
-                        val visitorData = values?.optString("visitorData").orEmpty()
-                        if (values == null || apiKey.isBlank() || clientVersion.isBlank() || visitorData.isBlank()) {
-                            extractionAttempts++
-                            if (extractionAttempts < 20) view.postDelayed({ extractSession() }, 500L)
-                            return@evaluateJavascript
-                        }
-                        finish(
-                            Session(
-                                cookie = cookie,
-                                apiKey = apiKey,
-                                clientVersion = clientVersion,
-                                visitorData = visitorData,
-                                authUser = values.optString("authUser", "0"),
-                                dataSyncId = values.optString("dataSyncId").substringBefore("||"),
-                                displayName = values.optString("displayName").ifBlank { "YouTube Music" },
-                                userAgent = values.optString("userAgent").ifBlank { view.settings.userAgentString },
-                            )
-                        )
-                    }
-                }
-                extractSession()
-            }
-        }
-        dialog.setContentView(webView)
-        dialog.setCanceledOnTouchOutside(false)
-        dialog.setOnCancelListener { finish(null) }
-        dialog.setOnDismissListener { if (!finished) finish(null) }
-        dialog.setOnShowListener { dialog.window?.setLayout(-1, -1) }
-        continuation.invokeOnCancellation {
-            activity.runOnUiThread {
-                if (!finished) {
-                    finished = true
-                    runCatching { webView.stopLoading() }
-                    runCatching { webView.destroy() }
-                    if (dialog.isShowing) dialog.dismiss()
-                }
-            }
-        }
-        dialog.show()
-        dialog.window?.setLayout(-1, -1)
-        webView.loadUrl("https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com")
     }
 
-    fun signOut() {
-        prefs.edit().remove(SESSION_KEY).apply()
+    suspend fun authorize(activity: Activity): AuthorizationStep {
+        val request = AuthorizationRequest.builder()
+            .setRequestedScopes(SCOPES)
+            .build()
+        val result = Identity.getAuthorizationClient(activity).authorize(request).await()
+        return consumeAuthorization(result)
+    }
+
+    suspend fun completeAuthorization(activity: Activity, data: Intent?): Session {
+        val result = Identity.getAuthorizationClient(activity).getAuthorizationResultFromIntent(data)
+        val token = result.accessToken?.takeIf { it.isNotBlank() }
+            ?: throw IOException("Google did not return a YouTube Music access token")
+        return createSession(token)
+    }
+
+    private suspend fun consumeAuthorization(
+        result: AuthorizationResult,
+    ): AuthorizationStep {
+        if (result.hasResolution()) {
+            return AuthorizationStep.NeedsConsent(
+                result.pendingIntent ?: throw IOException("Google authorization did not provide a consent screen")
+            )
+        }
+        val token = result.accessToken?.takeIf { it.isNotBlank() }
+            ?: throw IOException("Google did not return a YouTube Music access token")
+        return AuthorizationStep.Authorized(createSession(token))
+    }
+
+    private suspend fun createSession(accessToken: String): Session = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(USER_INFO_URL)
+            .header("Authorization", "Bearer $accessToken")
+            .header("Accept", "application/json")
+            .build()
+        val user = httpClient.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw IOException("Google account lookup failed (${response.code})")
+            }
+            runCatching { JSONObject(text) }.getOrElse {
+                throw IOException("Google returned an invalid account profile", it)
+            }
+        }
+        val subject = user.optString("sub").takeIf { it.isNotBlank() }
+            ?: throw IOException("Google did not return a stable account identifier")
+        val accountKey = MessageDigest.getInstance("SHA-256")
+            .digest(subject.toByteArray(Charsets.UTF_8))
+            .take(16)
+            .joinToString("") { "%02x".format(it) }
+        val displayName = user.optString("name").ifBlank { "YouTube Music" }
+        prefs.edit()
+            .putBoolean(CONNECTED_KEY, true)
+            .putString(LAST_ACCOUNT_KEY, accountKey)
+            .apply()
+        Session(accessToken, accountKey, displayName).also { _session.value = it }
+    }
+
+    fun hasStoredAuthorization(): Boolean = prefs.getBoolean(CONNECTED_KEY, false)
+
+    /** Used only to keep offline like/unlike operations attached to their original account. */
+    fun lastAccountKey(): String? = prefs.getString(LAST_ACCOUNT_KEY, null)?.takeIf { it.isNotBlank() }
+
+    fun signOut(activity: Activity) {
         _session.value = null
-        CookieManager.getInstance().removeAllCookies(null)
-        CookieManager.getInstance().flush()
+        prefs.edit().putBoolean(CONNECTED_KEY, false).apply()
+        runCatching {
+            Identity.getAuthorizationClient(activity).revokeAccess(
+                RevokeAccessRequest.builder().setScopes(SCOPES).build()
+            )
+        }
     }
-
-    private fun saveSession(session: Session) {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey())
-        val encrypted = cipher.doFinal(session.toJson().toString().toByteArray(Charsets.UTF_8))
-        val packed = cipher.iv + encrypted
-        prefs.edit().putString(SESSION_KEY, Base64.encodeToString(packed, Base64.NO_WRAP)).apply()
-    }
-
-    private fun loadSession(): Session? = runCatching {
-        val packed = Base64.decode(prefs.getString(SESSION_KEY, null), Base64.NO_WRAP)
-        require(packed.size > GCM_IV_BYTES)
-        val iv = packed.copyOfRange(0, GCM_IV_BYTES)
-        val encrypted = packed.copyOfRange(GCM_IV_BYTES, packed.size)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, encryptionKey(), GCMParameterSpec(128, iv))
-        val json = JSONObject(String(cipher.doFinal(encrypted), Charsets.UTF_8))
-        Session(
-            cookie = json.getString("cookie"),
-            apiKey = json.getString("apiKey"),
-            clientVersion = json.getString("clientVersion"),
-            visitorData = json.getString("visitorData"),
-            authUser = json.optString("authUser", "0"),
-            dataSyncId = json.optString("dataSyncId"),
-            displayName = json.optString("displayName", "YouTube Music"),
-            userAgent = json.optString("userAgent"),
-        )
-    }.getOrNull()
-
-    private fun encryptionKey(): SecretKey {
-        val store = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-        generator.init(
-            KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-            ).setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setRandomizedEncryptionRequired(true)
-                .build()
-        )
-        return generator.generateKey()
-    }
-
-    private fun cookieValue(cookie: String, key: String): String? = cookie.split(';').asSequence()
-        .map { it.trim() }
-        .firstOrNull { it.startsWith("$key=") }
-        ?.substringAfter('=')
-        ?.takeIf { it.isNotBlank() }
 
     companion object {
         private const val PREFS = "youtube_music_account"
-        private const val SESSION_KEY = "encrypted_session_v1"
-        private const val KEY_ALIAS = "minim.youtube.music.session.v1"
-        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private const val GCM_IV_BYTES = 12
-        private const val MUSIC_HOST = "music.youtube.com"
-        private const val MUSIC_ORIGIN = "https://music.youtube.com"
-        private const val SESSION_SCRIPT = """(function(){var c=window.ytcfg||{};var g=function(k){try{return typeof c.get==='function'?c.get(k):(c.data_||{})[k]}catch(e){return null}};var x=g('INNERTUBE_CONTEXT')||{};var cl=x.client||{};return JSON.stringify({apiKey:g('INNERTUBE_API_KEY'),clientVersion:g('INNERTUBE_CLIENT_VERSION')||cl.clientVersion,visitorData:g('VISITOR_DATA')||cl.visitorData,authUser:String(g('SESSION_INDEX')||'0'),dataSyncId:String(g('DATASYNC_ID')||''),displayName:String(g('ACCOUNT_NAME')||''),userAgent:navigator.userAgent})})();"""
+        private const val CONNECTED_KEY = "connected"
+        private const val LAST_ACCOUNT_KEY = "last_account_key"
+        private const val LEGACY_SESSION_KEY = "encrypted_session_v1"
+        private const val LEGACY_KEY_ALIAS = "minim.youtube.music.session.v1"
+        private const val USER_INFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+        private val SCOPES = listOf(
+            Scope("https://www.googleapis.com/auth/youtube"),
+            Scope("openid"),
+            Scope("profile"),
+        )
     }
 }

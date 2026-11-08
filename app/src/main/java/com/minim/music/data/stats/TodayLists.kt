@@ -37,6 +37,7 @@ object TodayLists {
     }
 
     /** Every artist heard (a counted play or 30 s+ of listening), most listened first. */
+    @Suppress("UNUSED_PARAMETER")
     fun artists(
         plays: List<PlayRow>,
         listens: List<ListenRow>,

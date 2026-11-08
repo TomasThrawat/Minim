@@ -32,6 +32,7 @@ object HeartMotion {
      * What a double tap on the cover does: it only ever likes. Double tapping a liked song again
      * keeps it liked (the big heart still shows, nothing is unliked).
      */
+    @Suppress("UNUSED_PARAMETER")
     fun afterDoubleTap(liked: Boolean): Boolean = true
 
     /** True when a double tap actually changes the song (so the small heart fills and bursts). */

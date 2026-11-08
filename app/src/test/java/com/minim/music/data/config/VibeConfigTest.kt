@@ -268,10 +268,10 @@ class VibeConfigTest {
     }
 
     @Test
-    fun configNeverLivesUnderTheAccount() {
-        // Delete account removes users/{uid}; the config document sits outside it
-        assertEquals("config", com.minim.music.data.account.CloudPaths.CONFIG)
-        assertFalse(com.minim.music.data.account.CloudPaths.CONFIG == com.minim.music.data.account.CloudPaths.USERS)
-        assertEquals("app", VibeConfigSource.DOC)
+    fun featureConfigUsesLocalDefaultsWithoutACloudAccount() {
+        val source = VibeConfigSource()
+        assertSame(VibeConfig.DEFAULT, source.config.value)
+        source.refresh(force = true)
+        assertSame(VibeConfig.DEFAULT, source.config.value)
     }
 }

@@ -401,7 +401,7 @@ class PlaybackController(
 
         val queue = ArrayList<Track>(c.mediaItemCount)
         for (i in 0 until c.mediaItemCount) {
-            c.getMediaItemAt(i)?.let { queue.add(Track.fromMediaItem(it)) }
+            queue.add(Track.fromMediaItem(c.getMediaItemAt(i)))
         }
 
         val isBuffering = c.playbackState == Player.STATE_BUFFERING

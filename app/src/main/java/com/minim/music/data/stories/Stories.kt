@@ -52,7 +52,7 @@ object StoryTracks {
     /** The tape's channel id, when it was saved with one (tapes from before u47 have none). */
     fun channelIdOf(track: Track?): String? {
         if (!isStory(track)) return null
-        val url = track!!.sourceUrl ?: return null
+        val url = track!!.sourceUrl
         val i = url.indexOf("&$CHANNEL_PARAM")
         if (i < 0) return null
         val id = url.substring(i + CHANNEL_PARAM.length + 1).substringBefore('&')

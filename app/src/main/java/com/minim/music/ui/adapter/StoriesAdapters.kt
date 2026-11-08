@@ -88,6 +88,7 @@ class StoriesAdapter(
         submitList(channels, selectedId, label, note, uploads, StoryLength.ALL, emptyMap(), chips = false)
 
     /** 5.7.0 u46: one channel's uploads as rows (with the chips), heard ones dim. */
+    @Suppress("UNUSED_PARAMETER")
     fun submitList(
         channels: List<StoryChannel>, selectedId: String?, label: String, note: String?, uploads: List<StoryUpload>,
         length: StoryLength, progress: Map<String, StoryPlayback>, chips: Boolean = true, forceMeta: Boolean = false

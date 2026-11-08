@@ -4,8 +4,12 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="minim_ai.xml" />
+        <exclude domain="sharedpref" path="youtube_music_account.xml" />
+        <exclude domain="sharedpref" path="youtube_music_sync.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="minim_ai.xml" />
+        <exclude domain="sharedpref" path="youtube_music_account.xml" />
+        <exclude domain="sharedpref" path="youtube_music_sync.xml" />
     </device-transfer>
 </data-extraction-rules>

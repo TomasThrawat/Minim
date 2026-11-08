@@ -320,7 +320,7 @@ class LibraryDatabase(context: Context) :
     suspend fun recordCountedPlay(track: Track, listenedMs: Long): Long = withContext(Dispatchers.IO) {
         val db = writableDatabase
         val now = System.currentTimeMillis()
-        var rowId = -1L
+        var rowId: Long
         db.beginTransaction()
         try {
             upsertTrackInternal(db, track)
@@ -740,7 +740,7 @@ class LibraryDatabase(context: Context) :
 
     suspend fun toggleLike(track: Track): Boolean = withContext(Dispatchers.IO) {
         val db = writableDatabase
-        var newLiked = 0
+        var newLiked: Int
         db.beginTransaction()
         try {
             upsertTrackInternal(db, track)
@@ -834,7 +834,7 @@ class LibraryDatabase(context: Context) :
         if (clean.isEmpty()) return@withContext -1L
         val db = writableDatabase
         val now = System.currentTimeMillis()
-        var id = -1L
+        var id: Long
         db.beginTransaction()
         try {
             val uid = freePlaylistUid(db, clean)
@@ -877,7 +877,7 @@ class LibraryDatabase(context: Context) :
         val clean = newName.trim()
         if (clean.isEmpty()) return@withContext RenameResult.BLANK
         val db = writableDatabase
-        var result = RenameResult.MISSING
+        var result: RenameResult
         db.beginTransaction()
         try {
             var uid: String? = null
@@ -892,11 +892,10 @@ class LibraryDatabase(context: Context) :
                 old == null -> result = RenameResult.MISSING
                 old == clean -> result = RenameResult.SAME
                 else -> {
-                    var taken = false
-                    db.rawQuery(
+                    val taken = db.rawQuery(
                         "SELECT 1 FROM playlists WHERE name = ? AND id != ?",
                         arrayOf(clean, playlistId.toString())
-                    ).use { c -> taken = c.moveToFirst() }
+                    ).use { c -> c.moveToFirst() }
                     if (taken) {
                         result = RenameResult.TAKEN
                     } else {

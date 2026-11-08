@@ -4,4 +4,6 @@
      never be read on another phone anyway. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="minim_ai.xml" />
+    <exclude domain="sharedpref" path="youtube_music_account.xml" />
+    <exclude domain="sharedpref" path="youtube_music_sync.xml" />
 </full-backup-content>
