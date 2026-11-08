@@ -3539,7 +3539,7 @@ class MainActivity : AppCompatActivity() {
                             mark.animate().scaleX(1f).scaleY(1f).setDuration(180L)
                                 .setInterpolator(DecelerateInterpolator()).start()
                         }
-                        lifecycleScope.launch(addTrackToPlaylist@{
+                        lifecycleScope.launch(block = addTrackToPlaylist@ {
                             app.database.addTrackToPlaylist(playlistId, t)
                             if (openListId == playlistId) refreshOpenList()
                             refreshData()
@@ -3558,7 +3558,7 @@ class MainActivity : AppCompatActivity() {
                     searchJob?.cancel()
                     results.removeAllViews()
                     setStatus(null)
-                    searchJob = lifecycleScope.launch(showStart@{
+                    searchJob = lifecycleScope.launch(block = showStart@ {
                         val recent = app.database.getRecentTracks(12)
                         val liked = app.database.getLikedSongs().take(30)
                         if (gen != generation) return@showStart
