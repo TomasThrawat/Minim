@@ -34,8 +34,24 @@ jobs:
         with:
           cache-provider: basic
 
-      - name: Prepare release signing keystore
+      - name: Check release signing secrets
+        id: signing
         if: github.event_name != 'pull_request'
+        env:
+          MINIM_KEYSTORE_BASE64: ${{ secrets.MINIM_KEYSTORE_BASE64 }}
+          MINIM_KEYSTORE_PASSWORD: ${{ secrets.MINIM_KEYSTORE_PASSWORD }}
+          MINIM_KEY_ALIAS: ${{ secrets.MINIM_KEY_ALIAS }}
+          MINIM_KEY_PASSWORD: ${{ secrets.MINIM_KEY_PASSWORD }}
+        run: |
+          if [ -n "$MINIM_KEYSTORE_BASE64" ] && [ -n "$MINIM_KEYSTORE_PASSWORD" ] && [ -n "$MINIM_KEY_ALIAS" ] && [ -n "$MINIM_KEY_PASSWORD" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets are not configured; skipping signed Release APK."
+          fi
+
+      - name: Prepare release signing keystore
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         env:
           MINIM_KEYSTORE_BASE64: ${{ secrets.MINIM_KEYSTORE_BASE64 }}
           MINIM_KEYSTORE_PASSWORD: ${{ secrets.MINIM_KEYSTORE_PASSWORD }}
@@ -64,11 +80,11 @@ jobs:
           ./gradlew --no-daemon --stacktrace --warning-mode all --continue lintDebug testDebugUnitTest assembleDebug
 
       - name: Build signed Release APK
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         run: ./gradlew --no-daemon --stacktrace --warning-mode all assembleRelease
 
       - name: Verify Release APK signature
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -133,7 +149,7 @@ jobs:
           retention-days: 14
 
       - name: Upload signed Release APK
-        if: success() && github.event_name != 'pull_request'
+        if: success() && github.event_name != 'pull_request' && steps.signing.outputs.available == 'true'
         uses: actions/upload-artifact@v7.0.2
         with:
           name: minim-youtube-music-release
