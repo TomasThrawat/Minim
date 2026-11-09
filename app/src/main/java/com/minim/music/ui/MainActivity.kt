@@ -1459,9 +1459,9 @@ class MainActivity : AppCompatActivity() {
         return greetingFacts.copy(
             nowId = t?.id,
             nowTitle = title,
-            nowArtist = if (title != null) t?.artist else null,
+            nowArtist = if (title != null) t.artist else null,
             nowPlaying = title != null && (st.isPlaying || st.isBuffering),
-            nowLiked = title != null && t != null && likedIds.contains(t.id),
+            nowLiked = title != null && likedIds.contains(t.id),
             // The liked cache is live; the stored count covers the moment before it has loaded
             likedCount = if (likedIds.isNotEmpty()) likedIds.size else greetingFacts.likedCount
         )
@@ -3558,13 +3558,13 @@ class MainActivity : AppCompatActivity() {
                     searchJob?.cancel()
                     results.removeAllViews()
                     setStatus(null)
-                    searchJob = lifecycleScope.launch(block = showStart@ {
+                    searchJob = lifecycleScope.launch(block = recentStartLoad@ {
                         val recent = app.database.getRecentTracks(12)
                         val liked = app.database.getLikedSongs().take(30)
-                        if (gen != generation) return@showStart
+                        if (gen != generation) return@recentStartLoad
                         if (recent.isEmpty() && liked.isEmpty()) {
                             setStatus(getString(R.string.add_songs_nothing_yet))
-                            return@showStart
+                            return@recentStartLoad
                         }
                         if (recent.isNotEmpty()) {
                             label(getString(R.string.add_songs_recent))
@@ -3582,12 +3582,12 @@ class MainActivity : AppCompatActivity() {
                     if (q.isEmpty()) { showStart(); return }
                     val gen = ++generation
                     searchJob?.cancel()
-                    searchJob = lifecycleScope.launch {
+                    searchJob = lifecycleScope.launch(block = trackSearch@ {
                         if (delayMs > 0) kotlinx.coroutines.delay(delayMs)
-                        if (gen != generation) return@launch
+                        if (gen != generation) return@trackSearch
                         if (results.childCount == 0) setStatus(getString(R.string.add_songs_searching))
                         val r = app.sourceAdapter.searchTracks(q)
-                        if (gen != generation) return@launch
+                        if (gen != generation) return@trackSearch
                         results.removeAllViews()
                         when (r) {
                             is SourceResult.Success -> {
@@ -3596,7 +3596,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             is SourceResult.Error -> setStatus(getString(R.string.add_songs_error))
                         }
-                    }
+                    })
                 }
 
                 input.addTextChangedListener(object : android.text.TextWatcher {
@@ -4871,7 +4871,7 @@ class MainActivity : AppCompatActivity() {
                         val rings = HashMap<String, Float>()
                         groups.forEach { (k, g) -> rings[k] = com.minim.music.data.offline.OfflineRings.group(g, progress) }
                         com.minim.music.data.offline.OfflineRings.session(session, progress)?.let { rings["offline"] = it }
-                        rings as Map<String, Float>
+                        rings
                     }.collect { libraryAdapter.setSaving(it) }
                 }
                 launch {

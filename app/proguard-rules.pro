@@ -16,3 +16,6 @@
 
 # Keep MinimMusic data models
 -keep class com.minim.music.data.model.** { *; }
+# The optional JSR-223 service descriptor is excluded from the APK in build.gradle.kts.
+# Android does not provide this JVM-only service API, so suppress only its R8 missing-class warning.
+-dontwarn javax.script.ScriptEngineFactory
