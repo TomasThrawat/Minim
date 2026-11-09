@@ -10,6 +10,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -27,22 +28,50 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.minim.music.R
 import com.minim.music.data.account.YouTubeMusicSessionAuth
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import org.json.JSONObject
-import org.json.JSONTokener
-import kotlin.coroutines.resume
+import kotlinx.coroutines.withTimeoutOrNull
 
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 class YouTubeMusicLoginActivity : AppCompatActivity() {
+    private data class PageAuthData(
+        val visitorData: String?,
+        val dataSyncId: String?,
+        val authUser: String,
+    )
+
+    private class LoginJsInterface {
+        var onVisitorDataReceived: ((String?) -> Unit)? = null
+        var onDataSyncIdReceived: ((String?) -> Unit)? = null
+        var onAuthUserReceived: ((String?) -> Unit)? = null
+
+        @JavascriptInterface
+        fun onRetrieveVisitorData(value: String?) {
+            onVisitorDataReceived?.invoke(value)
+        }
+
+        @JavascriptInterface
+        fun onRetrieveDataSyncId(value: String?) {
+            onDataSyncIdReceived?.invoke(value)
+        }
+
+        @JavascriptInterface
+        fun onRetrieveAuthUser(value: String?) {
+            onAuthUserReceived?.invoke(value)
+        }
+    }
+
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
+    private val loginJsInterface = LoginJsInterface()
     private var captureJob: Job? = null
     private var errorDialog: AlertDialog? = null
     private var returnedSession = false
+    private var hasAuthCookie = false
+    private var hasVisitorData = false
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.BLACK
@@ -76,20 +105,20 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         toolbar.addView(title, LinearLayout.LayoutParams(0, dp(52), 1f))
-        root.addView(toolbar, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(52),
-        ))
+        root.addView(
+            toolbar,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)),
+        )
 
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
             progressTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
         }
-        root.addView(progressBar, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            dp(2),
-        ))
+        root.addView(
+            progressBar,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2)),
+        )
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.WHITE)
@@ -106,6 +135,7 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                 allowContentAccess = false
                 mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
             }
+            addJavascriptInterface(loginJsInterface, "Android")
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView, newProgress: Int) {
                     progressBar.progress = newProgress
@@ -129,7 +159,11 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                     return true
                 }
 
-                override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                override fun onPageStarted(
+                    view: WebView,
+                    url: String?,
+                    favicon: android.graphics.Bitmap?,
+                ) {
                     progressBar.visibility = View.VISIBLE
                 }
 
@@ -170,11 +204,10 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(webView, true)
         }
-        root.addView(webView, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1f,
-        ))
+        root.addView(
+            webView,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f),
+        )
         setContentView(root)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -194,22 +227,37 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
     private fun tryExtractSession() {
         if (captureJob?.isActive == true || isFinishing || returnedSession) return
         captureJob = lifecycleScope.launch {
-            repeat(20) {
+            repeat(MAX_EXTRACTION_ATTEMPTS) {
+                if (isFinishing || returnedSession) return@launch
+
                 val cookie = CookieManager.getInstance().getCookie(MUSIC_URL).orEmpty()
-                val pageConfig = readPageConfig()
-                val visitorData = pageConfig?.optString("visitorData").orEmpty()
-                if (YouTubeMusicSessionAuth.hasAuthenticationCookie(cookie) && visitorData.isNotBlank()) {
+                val cookieMap = YouTubeMusicSessionAuth.parseCookieString(cookie)
+                hasAuthCookie = listOf(
+                    "SAPISID",
+                    "__Secure-3PAPISID",
+                    "__Secure-1PAPISID",
+                ).any { !cookieMap[it].isNullOrBlank() }
+
+                // Ask the page for the same WEB_REMIX values MetroList reads through its bridge.
+                val pageData = readPageAuthData()
+                hasVisitorData = !pageData?.visitorData.isNullOrBlank()
+
+                if (hasAuthCookie && pageData != null && hasVisitorData) {
                     val result = Intent()
-                        .putExtra(EXTRA_COOKIE, YouTubeMusicSessionAuth.normalizeCookieString(cookie))
-                        .putExtra(EXTRA_VISITOR_DATA, visitorData)
+                        .putExtra(
+                            EXTRA_COOKIE,
+                            YouTubeMusicSessionAuth.normalizeCookieString(cookie),
+                        )
+                        .putExtra(EXTRA_VISITOR_DATA, pageData.visitorData.orEmpty())
                         .putExtra(
                             EXTRA_DATA_SYNC_ID,
-                            pageConfig?.optString("dataSyncId").orEmpty().substringBefore("||"),
+                            pageData.dataSyncId.orEmpty().substringBefore("||"),
                         )
                         .putExtra(
                             EXTRA_AUTH_USER,
-                            pageConfig?.optString("authUser").orEmpty().filter(Char::isDigit).ifBlank { "0" },
+                            pageData.authUser.filter(Char::isDigit).ifBlank { "0" },
                         )
+
                     returnedSession = true
                     clearWebSession {
                         if (!isFinishing) {
@@ -219,26 +267,50 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                     }
                     return@launch
                 }
-                delay(500L)
+
+                delay(EXTRACTION_RETRY_DELAY_MS)
             }
-            showLoginError()
+
+            if (!isFinishing && !returnedSession) showLoginError()
         }
     }
 
-    private suspend fun readPageConfig(): JSONObject? =
-        suspendCancellableCoroutine { continuation ->
-            webView.evaluateJavascript(PAGE_AUTH_SCRIPT) { raw ->
-                if (!continuation.isActive) return@evaluateJavascript
-                val parsed = runCatching {
-                    when (val value = JSONTokener(raw).nextValue()) {
-                        is JSONObject -> value
-                        is String -> JSONObject(value)
-                        else -> null
-                    }
-                }.getOrNull()
-                continuation.resume(parsed)
-            }
+    private suspend fun readPageAuthData(): PageAuthData? {
+        val visitorDeferred = CompletableDeferred<String?>()
+        val dataSyncDeferred = CompletableDeferred<String?>()
+        val authUserDeferred = CompletableDeferred<String?>()
+
+        loginJsInterface.onVisitorDataReceived = { value ->
+            if (!visitorDeferred.isCompleted) visitorDeferred.complete(value)
         }
+        loginJsInterface.onDataSyncIdReceived = { value ->
+            if (!dataSyncDeferred.isCompleted) dataSyncDeferred.complete(value)
+        }
+        loginJsInterface.onAuthUserReceived = { value ->
+            if (!authUserDeferred.isCompleted) authUserDeferred.complete(value)
+        }
+
+        return withTimeoutOrNull(PAGE_AUTH_TIMEOUT_MS) {
+            webView.loadUrl(
+                "javascript:Android.onRetrieveVisitorData(" +
+                    "window.yt&&window.yt.config_?window.yt.config_.VISITOR_DATA:null)",
+            )
+            webView.loadUrl(
+                "javascript:Android.onRetrieveDataSyncId(" +
+                    "window.yt&&window.yt.config_?window.yt.config_.DATASYNC_ID:null)",
+            )
+            webView.loadUrl(
+                "javascript:Android.onRetrieveAuthUser(" +
+                    "window.yt&&window.yt.config_?String(window.yt.config_.SESSION_INDEX||0):'0')",
+            )
+
+            PageAuthData(
+                visitorData = visitorDeferred.await(),
+                dataSyncId = dataSyncDeferred.await(),
+                authUser = authUserDeferred.await().orEmpty(),
+            )
+        }
+    }
 
     private fun clearWebSession(onComplete: () -> Unit = {}) {
         CookieManager.getInstance().flush()
@@ -256,10 +328,22 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
 
     private fun showLoginError() {
         if (isFinishing || errorDialog?.isShowing == true) return
+        val detail = when {
+            !hasAuthCookie ->
+                "Google sign-in finished, but YouTube Music did not provide an authenticated session cookie."
+            !hasVisitorData ->
+                "The YouTube Music page loaded, but its account data did not finish loading."
+            else ->
+                "YouTube Music sign-in could not be completed. Check your connection and retry."
+        }
         errorDialog = AlertDialog.Builder(this)
             .setTitle("Sign in to YouTube Music")
-            .setMessage("Could not detect a signed-in YouTube Music session. Check your account and retry.")
-            .setPositiveButton("Retry") { _, _ -> webView.reload() }
+            .setMessage("$detail Press Retry to try again.")
+            .setPositiveButton("Retry") { _, _ ->
+                captureJob?.cancel()
+                errorDialog = null
+                webView.reload()
+            }
             .setNegativeButton(R.string.close) { _, _ ->
                 setResult(Activity.RESULT_CANCELED)
                 finish()
@@ -279,11 +363,17 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         try {
             if (intent.resolveActivity(packageManager) != null) {
                 startActivity(intent)
-            } else if (!fallback.isNullOrBlank() && isTrustedGoogleOrYouTubeHost(Uri.parse(fallback).host.orEmpty())) {
+            } else if (
+                !fallback.isNullOrBlank() &&
+                isTrustedGoogleOrYouTubeHost(Uri.parse(fallback).host.orEmpty())
+            ) {
                 webView.loadUrl(fallback)
             }
         } catch (_: Exception) {
-            if (!fallback.isNullOrBlank() && isTrustedGoogleOrYouTubeHost(Uri.parse(fallback).host.orEmpty())) {
+            if (
+                !fallback.isNullOrBlank() &&
+                isTrustedGoogleOrYouTubeHost(Uri.parse(fallback).host.orEmpty())
+            ) {
                 webView.loadUrl(fallback)
             }
         }
@@ -293,6 +383,12 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         val normalized = host.lowercase()
         return normalized == "google.com" ||
             normalized.endsWith(".google.com") ||
+            normalized == "google.com.eg" ||
+            normalized.endsWith(".google.com.eg") ||
+            normalized == "google.co.uk" ||
+            normalized.endsWith(".google.co.uk") ||
+            normalized == "g.co" ||
+            normalized.endsWith(".g.co") ||
             normalized == "youtube.com" ||
             normalized.endsWith(".youtube.com") ||
             normalized == "gstatic.com" ||
@@ -311,6 +407,7 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         captureJob?.cancel()
         if (::webView.isInitialized) {
             webView.stopLoading()
+            webView.removeJavascriptInterface("Android")
             webView.webChromeClient = null
             webView.webViewClient = WebViewClient()
             (webView.parent as? ViewGroup)?.removeView(webView)
@@ -330,15 +427,8 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         private const val MUSIC_URL = "https://music.youtube.com"
         private const val LOGIN_URL =
             "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"
-        private const val PAGE_AUTH_SCRIPT = """
-            (function () {
-                var config = window.yt && window.yt.config_ ? window.yt.config_ : {};
-                return JSON.stringify({
-                    visitorData: config.VISITOR_DATA || "",
-                    dataSyncId: config.DATASYNC_ID || "",
-                    authUser: String(config.SESSION_INDEX || "0")
-                });
-            })()
-        """
+        private const val PAGE_AUTH_TIMEOUT_MS = 1_000L
+        private const val EXTRACTION_RETRY_DELAY_MS = 500L
+        private const val MAX_EXTRACTION_ATTEMPTS = 20
     }
 }
