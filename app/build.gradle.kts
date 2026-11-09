@@ -39,6 +39,7 @@ android {
                 storePassword = keystoreProps.getProperty("storePassword")
                 keyAlias = keystoreProps.getProperty("keyAlias")
                 keyPassword = keystoreProps.getProperty("keyPassword")
+                storeType = keystoreProps.getProperty("storeType", "PKCS12")
             }
         }
     }
@@ -56,6 +57,7 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            signingConfigs.findByName("minim")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

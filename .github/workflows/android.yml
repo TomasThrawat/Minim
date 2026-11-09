@@ -34,10 +34,50 @@ jobs:
         with:
           cache-provider: basic
 
+      - name: Prepare release signing keystore
+        if: github.event_name != 'pull_request'
+        env:
+          MINIM_KEYSTORE_BASE64: ${{ secrets.MINIM_KEYSTORE_BASE64 }}
+          MINIM_KEYSTORE_PASSWORD: ${{ secrets.MINIM_KEYSTORE_PASSWORD }}
+          MINIM_KEY_ALIAS: ${{ secrets.MINIM_KEY_ALIAS }}
+          MINIM_KEY_PASSWORD: ${{ secrets.MINIM_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$MINIM_KEYSTORE_BASE64" || { echo "Missing MINIM_KEYSTORE_BASE64 repository secret"; exit 1; }
+          test -n "$MINIM_KEYSTORE_PASSWORD" || { echo "Missing MINIM_KEYSTORE_PASSWORD repository secret"; exit 1; }
+          test -n "$MINIM_KEY_ALIAS" || { echo "Missing MINIM_KEY_ALIAS repository secret"; exit 1; }
+          test -n "$MINIM_KEY_PASSWORD" || { echo "Missing MINIM_KEY_PASSWORD repository secret"; exit 1; }
+          printf '%s' "$MINIM_KEYSTORE_BASE64" | base64 --decode > app/minim-release.p12
+          chmod 600 app/minim-release.p12
+          {
+            printf 'storeFile=app/minim-release.p12\n'
+            printf 'storeType=PKCS12\n'
+            printf 'storePassword=%s\n' "$MINIM_KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$MINIM_KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$MINIM_KEY_PASSWORD"
+          } > keystore.properties
+          chmod 600 keystore.properties
+
       - name: Run lint, unit tests and build Debug APK
         run: |
           chmod +x ./gradlew
           ./gradlew --no-daemon --stacktrace --warning-mode all --continue lintDebug testDebugUnitTest assembleDebug
+
+      - name: Build signed Release APK
+        if: github.event_name != 'pull_request'
+        run: ./gradlew --no-daemon --stacktrace --warning-mode all assembleRelease
+
+      - name: Verify Release APK signature
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$apk" || { echo "Release APK not found"; exit 1; }
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          apksigner="$(find "$sdk_root/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner" || { echo "apksigner not found in Android SDK"; exit 1; }
+          "$apksigner" verify --verbose --print-certs "$apk"
 
       - name: Print unit-test failures
         if: always()
@@ -91,3 +131,12 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload signed Release APK
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: minim-youtube-music-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
