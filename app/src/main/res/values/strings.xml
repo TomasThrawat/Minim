@@ -487,6 +487,7 @@
     <string name="offline_saved_cd">Saved offline</string>
     <string name="offline_saving_cd">Saving offline</string>
     <string name="offline_save">Save offline</string>
+    <string name="offline_download_all_liked">Download all liked songs</string>
     <string name="offline_remove">Remove from offline</string>
     <string name="offline_left">%1$d left</string>
     <string name="offline_empty">Nothing saved yet. Long-press a song, a tape, a playlist or Liked and tap Save offline.</string>

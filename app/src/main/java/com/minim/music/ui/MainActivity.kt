@@ -7682,13 +7682,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Save offline (with "12 left" when some are saved already) and Remove from offline. */
-    private fun offlineGroupActions(box: android.widget.LinearLayout, tracks: List<Track>, key: String, name: String) {
+    private fun offlineGroupActions(
+        box: android.widget.LinearLayout,
+        tracks: List<Track>,
+        key: String,
+        name: String,
+        saveLabel: String = getString(R.string.offline_save),
+    ) {
         val ids = tracks.map { it.id }.distinct()
         val on = ids.count { app.offlineStore.isSaved(it) || app.offline.isSaving(it) }
         val left = ids.size - on
         if (left > 0 || ids.isEmpty()) {
             sheetAction(
-                box, R.drawable.ic_offline, getString(R.string.offline_save),
+                box, R.drawable.ic_offline, saveLabel,
                 trailing = if (on > 0) getString(R.string.offline_left, left) else null
             ) {
                 closeSheet()
@@ -7718,14 +7724,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Long-press on Liked Songs: Save offline / Remove from offline. */
+    /** Long-press on Liked Songs: download all liked songs / Remove from offline. */
     private fun showLikedOptions() {
         lifecycleScope.launch {
-            val tracks = app.database.getLikedTracks()
+            // Only songs belong in the audio download queue; leave liked tapes out.
+            val tracks = app.database.getLikedSongs()
             val name = getString(R.string.liked_songs)
             openSheet { box ->
                 sheetHeading(box, name, songCount(tracks.size))
-                offlineGroupActions(box, tracks, "liked", name)
+                offlineGroupActions(
+                    box,
+                    tracks,
+                    "liked",
+                    name,
+                    saveLabel = getString(R.string.offline_download_all_liked),
+                )
             }
         }
     }
