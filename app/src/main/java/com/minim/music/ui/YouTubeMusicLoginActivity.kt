@@ -259,12 +259,19 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                         )
 
                     returnedSession = true
-                    clearWebSession {
-                        if (!isFinishing) {
-                            setResult(Activity.RESULT_OK, result)
-                            finish()
-                        }
+                    // Return the verified session immediately. Cookie cleanup is asynchronous and
+                    // must not hold the Activity open after Google sign-in has completed.
+                    CookieManager.getInstance().flush()
+                    setResult(Activity.RESULT_OK, result)
+                    CookieManager.getInstance().removeAllCookies {
+                        CookieManager.getInstance().flush()
                     }
+                    WebStorage.getInstance().deleteAllData()
+                    webView.stopLoading()
+                    webView.clearHistory()
+                    webView.clearCache(true)
+                    webView.clearFormData()
+                    finish()
                     return@launch
                 }
 
