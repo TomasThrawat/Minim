@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="account_pitch">Sign in to YouTube Music to keep your liked songs in sync with this phone.</string>
+    <string name="account_sign_in">Connect YouTube Music</string>
+    <string name="account_privacy">Your YouTube Music session is encrypted on this phone. Minim never reads or stores your Google password.</string>
+    <string name="account_err_failed">Could not connect to YouTube Music. Check your connection and try again.</string>
+    <string name="youtube_login_title">Sign in to YouTube Music</string>
+    <string name="youtube_login_error">Couldn&apos;t detect a signed-in YouTube Music session. Check your account and retry.</string>
+    <string name="youtube_login_retry">Retry</string>
+</resources>

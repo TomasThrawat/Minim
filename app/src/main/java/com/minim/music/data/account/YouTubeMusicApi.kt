@@ -44,6 +44,29 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
     @Volatile private var cachedConfig: YouTubeMusicWebConfig? = null
     @Volatile private var configLoadedAt = 0L
 
+    /** Validates a cookie session against the signed-in account exposed by YouTube Music. */
+    suspend fun validateSession(session: YouTubeMusicAccount.Session): String = withContext(Dispatchers.IO) {
+        val response = post(session, webConfig(), "account/account_menu", JSONObject())
+        val header = findObject(response, "activeAccountHeaderRenderer")
+            ?: throw IOException("YouTube Music did not confirm the signed-in account. Sign in again.")
+        val accountName = header.optJSONObject("accountName")
+            ?.optJSONArray("runs")
+            ?.optJSONObject(0)
+            ?.optString("text")
+            .orEmpty()
+        val email = header.optJSONObject("email")
+            ?.optJSONArray("runs")
+            ?.optJSONObject(0)
+            ?.optString("text")
+            .orEmpty()
+        val name = accountName.ifBlank { email }
+        if (name.isBlank()) {
+            throw IOException("YouTube Music returned an empty account profile. Sign in again.")
+        }
+        name
+    }
+
+
     suspend fun setLiked(session: YouTubeMusicAccount.Session, videoId: String, liked: Boolean) = withContext(Dispatchers.IO) {
         require(videoId.isNotBlank())
         val config = webConfig()
@@ -96,6 +119,10 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
         endpoint: String,
         extra: JSONObject,
     ): JSONObject {
+        val userContext = JSONObject().put("lockedSafetyMode", false)
+        if (session.dataSyncId.isNotBlank()) {
+            userContext.put("onBehalfOfUser", session.dataSyncId)
+        }
         val context = JSONObject().put(
             "client",
             JSONObject()
@@ -103,8 +130,8 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
                 .put("clientVersion", config.clientVersion)
                 .put("hl", Locale.getDefault().language.ifBlank { "en" })
                 .put("gl", Locale.getDefault().country.ifBlank { "US" })
-                .put("visitorData", config.visitorData)
-        ).put("user", JSONObject().put("lockedSafetyMode", false))
+                .put("visitorData", session.visitorData)
+        ).put("user", userContext)
         val body = JSONObject().put("context", context)
         val keys = extra.keys()
         while (keys.hasNext()) {
@@ -122,10 +149,14 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
             .header("Origin", MUSIC_ORIGIN)
             .header("X-Origin", MUSIC_ORIGIN)
             .header("Referer", "$MUSIC_ORIGIN/")
-            .header("Authorization", "Bearer ${session.accessToken}")
-            .header("X-Goog-AuthUser", config.authUser)
-            .header("X-Goog-Visitor-Id", config.visitorData)
-            .apply { if (config.dataSyncId.isNotBlank()) header("X-Goog-PageId", config.dataSyncId) }
+            .header(
+                "Authorization",
+                YouTubeMusicSessionAuth.authorizationHeader(session.cookie)
+                    ?: throw IOException("The YouTube Music session is missing its authentication cookie. Sign in again."),
+            )
+            .header("Cookie", session.cookie)
+            .header("X-Goog-AuthUser", session.authUser)
+            .header("X-Goog-Visitor-Id", session.visitorData)
             .header("X-YouTube-Client-Name", "67")
             .header("X-YouTube-Client-Version", config.clientVersion)
             .header("User-Agent", System.getProperty("http.agent") ?: "Minim Android")
@@ -134,7 +165,7 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val reason = when (response.code) {
-                    401, 403 -> "YouTube Music rejected the Google authorization; reconnect your account"
+                    401, 403 -> "YouTube Music rejected the web session; reconnect your account"
                     429 -> "YouTube Music is receiving too many requests; try again later"
                     else -> "YouTube Music request failed (${response.code})"
                 }
@@ -205,6 +236,14 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
             }
         }
         return token
+    }
+
+    private fun findObject(root: JSONObject, wanted: String): JSONObject? {
+        var found: JSONObject? = null
+        walk(root) { key, value ->
+            if (found == null && key == wanted && value is JSONObject) found = value
+        }
+        return found
     }
 
     private fun containsKey(root: JSONObject, wanted: String): Boolean {

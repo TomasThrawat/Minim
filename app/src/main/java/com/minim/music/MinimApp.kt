@@ -97,7 +97,7 @@ open class MinimApp : Application() {
         com.minim.music.data.artists.LikedArtistsStore(this)
     }
 
-    /** YouTube Music OAuth authorization; access tokens live in memory only. */
+    /** YouTube Music web session; its cookie is encrypted locally with Android Keystore. */
     val youtubeMusicAccount: com.minim.music.data.account.YouTubeMusicAccount by lazy {
         com.minim.music.data.account.YouTubeMusicAccount(this, okHttpClient)
     }

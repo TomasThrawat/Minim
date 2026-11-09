@@ -103,6 +103,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        <activity
+            android:name=".ui.YouTubeMusicLoginActivity"
+            android:exported="false"
+            android:label="@string/youtube_login_title"
+            android:windowSoftInputMode="adjustResize" />
+
     </application>
 
 </manifest>

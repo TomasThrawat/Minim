@@ -111,9 +111,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
-    // Official Google Identity authorization flow for accessing the signed-in YouTube account.
-    implementation("com.google.android.gms:play-services-auth:22.0.0")
-
     // Media3 ExoPlayer & MediaSessionService (Single authoritative playback engine)
     val media3Version = "1.2.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
