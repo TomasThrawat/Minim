@@ -40,12 +40,16 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         val visitorData: String?,
         val dataSyncId: String?,
         val authUser: String,
+        val apiKey: String?,
+        val clientVersion: String?,
     )
 
     private class LoginJsInterface {
         var onVisitorDataReceived: ((String?) -> Unit)? = null
         var onDataSyncIdReceived: ((String?) -> Unit)? = null
         var onAuthUserReceived: ((String?) -> Unit)? = null
+        var onApiKeyReceived: ((String?) -> Unit)? = null
+        var onClientVersionReceived: ((String?) -> Unit)? = null
 
         @JavascriptInterface
         fun onRetrieveVisitorData(value: String?) {
@@ -61,6 +65,16 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         fun onRetrieveAuthUser(value: String?) {
             onAuthUserReceived?.invoke(value)
         }
+
+        @JavascriptInterface
+        fun onRetrieveApiKey(value: String?) {
+            onApiKeyReceived?.invoke(value)
+        }
+
+        @JavascriptInterface
+        fun onRetrieveClientVersion(value: String?) {
+            onClientVersionReceived?.invoke(value)
+        }
     }
 
     private lateinit var webView: WebView
@@ -71,6 +85,7 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
     private var returnedSession = false
     private var hasAuthCookie = false
     private var hasVisitorData = false
+    private var hasWebRemixConfig = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -241,8 +256,10 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                 // Ask the page for the same WEB_REMIX values MetroList reads through its bridge.
                 val pageData = readPageAuthData()
                 hasVisitorData = !pageData?.visitorData.isNullOrBlank()
+                hasWebRemixConfig = !pageData?.apiKey.isNullOrBlank() &&
+                    !pageData?.clientVersion.isNullOrBlank()
 
-                if (hasAuthCookie && pageData != null && hasVisitorData) {
+                if (hasAuthCookie && pageData != null && hasVisitorData && hasWebRemixConfig) {
                     val result = Intent()
                         .putExtra(
                             EXTRA_COOKIE,
@@ -257,6 +274,8 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                             EXTRA_AUTH_USER,
                             pageData.authUser.filter(Char::isDigit).ifBlank { "0" },
                         )
+                        .putExtra(EXTRA_API_KEY, pageData.apiKey.orEmpty())
+                        .putExtra(EXTRA_CLIENT_VERSION, pageData.clientVersion.orEmpty())
 
                     returnedSession = true
                     // Return the verified session immediately. Cookie cleanup is asynchronous and
@@ -286,6 +305,8 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         val visitorDeferred = CompletableDeferred<String?>()
         val dataSyncDeferred = CompletableDeferred<String?>()
         val authUserDeferred = CompletableDeferred<String?>()
+        val apiKeyDeferred = CompletableDeferred<String?>()
+        val clientVersionDeferred = CompletableDeferred<String?>()
 
         loginJsInterface.onVisitorDataReceived = { value ->
             if (!visitorDeferred.isCompleted) visitorDeferred.complete(value)
@@ -295,6 +316,12 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         }
         loginJsInterface.onAuthUserReceived = { value ->
             if (!authUserDeferred.isCompleted) authUserDeferred.complete(value)
+        }
+        loginJsInterface.onApiKeyReceived = { value ->
+            if (!apiKeyDeferred.isCompleted) apiKeyDeferred.complete(value)
+        }
+        loginJsInterface.onClientVersionReceived = { value ->
+            if (!clientVersionDeferred.isCompleted) clientVersionDeferred.complete(value)
         }
 
         return withTimeoutOrNull(PAGE_AUTH_TIMEOUT_MS) {
@@ -310,11 +337,25 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                 "javascript:Android.onRetrieveAuthUser(" +
                     "window.yt&&window.yt.config_?String(window.yt.config_.SESSION_INDEX||0):'0')",
             )
+            webView.loadUrl(
+                "javascript:Android.onRetrieveApiKey(" +
+                    "(window.ytcfg&&window.ytcfg.get&&window.ytcfg.get('INNERTUBE_API_KEY'))||" +
+                    "(window.yt&&window.yt.config_?window.yt.config_.INNERTUBE_API_KEY:null))",
+            )
+            webView.loadUrl(
+                "javascript:Android.onRetrieveClientVersion(" +
+                    "(window.ytcfg&&window.ytcfg.get&&(window.ytcfg.get('INNERTUBE_CLIENT_VERSION')||" +
+                    "window.ytcfg.get('INNERTUBE_CONTEXT_CLIENT_VERSION')))||" +
+                    "(window.yt&&window.yt.config_?(window.yt.config_.INNERTUBE_CLIENT_VERSION||" +
+                    "window.yt.config_.INNERTUBE_CONTEXT_CLIENT_VERSION):null))",
+            )
 
             PageAuthData(
                 visitorData = visitorDeferred.await(),
                 dataSyncId = dataSyncDeferred.await(),
                 authUser = authUserDeferred.await().orEmpty(),
+                apiKey = apiKeyDeferred.await(),
+                clientVersion = clientVersionDeferred.await(),
             )
         }
     }
@@ -340,6 +381,8 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
                 "Google sign-in finished, but YouTube Music did not provide an authenticated session cookie."
             !hasVisitorData ->
                 "The YouTube Music page loaded, but its account data did not finish loading."
+            !hasWebRemixConfig ->
+                "The signed-in YouTube Music page did not expose its WEB_REMIX API key and client version."
             else ->
                 "YouTube Music sign-in could not be completed. Check your connection and retry."
         }
@@ -429,6 +472,8 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         const val EXTRA_VISITOR_DATA = "com.minim.music.youtube.EXTRA_VISITOR_DATA"
         const val EXTRA_DATA_SYNC_ID = "com.minim.music.youtube.EXTRA_DATA_SYNC_ID"
         const val EXTRA_AUTH_USER = "com.minim.music.youtube.EXTRA_AUTH_USER"
+        const val EXTRA_API_KEY = "com.minim.music.youtube.EXTRA_API_KEY"
+        const val EXTRA_CLIENT_VERSION = "com.minim.music.youtube.EXTRA_CLIENT_VERSION"
 
         private const val MUSIC_HOST = "music.youtube.com"
         private const val MUSIC_URL = "https://music.youtube.com"

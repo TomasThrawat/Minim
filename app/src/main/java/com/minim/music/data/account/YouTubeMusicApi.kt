@@ -41,7 +41,7 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
 
     /** Validates a cookie session against the signed-in account exposed by YouTube Music. */
     suspend fun validateSession(session: YouTubeMusicAccount.Session): String = withContext(Dispatchers.IO) {
-        val response = post(session, webConfig(), "account/account_menu", JSONObject())
+        val response = post(session, webConfig(session), "account/account_menu", JSONObject())
         val header = findObject(response, "activeAccountHeaderRenderer")
             ?: throw IOException("YouTube Music did not confirm the signed-in account. Sign in again.")
         val accountName = header.optJSONObject("accountName")
@@ -64,12 +64,12 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
 
     suspend fun setLiked(session: YouTubeMusicAccount.Session, videoId: String, liked: Boolean) = withContext(Dispatchers.IO) {
         require(videoId.isNotBlank())
-        val config = webConfig()
+        val config = webConfig(session)
         post(session, config, if (liked) "like/like" else "like/removelike", JSONObject().put("target", JSONObject().put("videoId", videoId)))
     }
 
     suspend fun fetchLikedSongs(session: YouTubeMusicAccount.Session): List<Track> = withContext(Dispatchers.IO) {
-        val config = webConfig()
+        val config = webConfig(session)
         val tracks = LinkedHashMap<String, Track>()
         var continuation: String? = null
         var sawLikedShelf = false
@@ -87,6 +87,18 @@ class YouTubeMusicApi(private val client: OkHttpClient) {
             if (page == MAX_PAGES - 1) throw IOException("YouTube Music liked songs are still paginated")
         }
         throw IOException("YouTube Music liked songs could not be fully loaded")
+    }
+
+    private fun webConfig(session: YouTubeMusicAccount.Session): YouTubeMusicWebConfig {
+        if (session.apiKey.isNotBlank() && session.clientVersion.isNotBlank()) {
+            return YouTubeMusicWebConfig(
+                apiKey = session.apiKey,
+                clientVersion = session.clientVersion,
+            )
+        }
+        // Backward compatibility for encrypted sessions created before config capture
+        // was moved into the signed-in WebView.
+        return webConfig()
     }
 
     private fun webConfig(): YouTubeMusicWebConfig {

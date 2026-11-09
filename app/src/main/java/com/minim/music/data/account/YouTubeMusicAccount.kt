@@ -38,6 +38,8 @@ class YouTubeMusicAccount(
         val authUser: String,
         val accountKey: String,
         val displayName: String,
+        val apiKey: String = "",
+        val clientVersion: String = "",
     ) {
         override fun toString(): String =
             "Session(accountKey=" + accountKey + ", displayName=" + displayName + ")"
@@ -89,6 +91,8 @@ class YouTubeMusicAccount(
             visitorData = result.getStringExtra(YouTubeMusicLoginActivity.EXTRA_VISITOR_DATA).orEmpty(),
             dataSyncId = result.getStringExtra(YouTubeMusicLoginActivity.EXTRA_DATA_SYNC_ID).orEmpty(),
             authUser = result.getStringExtra(YouTubeMusicLoginActivity.EXTRA_AUTH_USER).orEmpty(),
+            apiKey = result.getStringExtra(YouTubeMusicLoginActivity.EXTRA_API_KEY).orEmpty(),
+            clientVersion = result.getStringExtra(YouTubeMusicLoginActivity.EXTRA_CLIENT_VERSION).orEmpty(),
         )
     }
 
@@ -97,6 +101,8 @@ class YouTubeMusicAccount(
         visitorData: String,
         dataSyncId: String,
         authUser: String,
+        apiKey: String,
+        clientVersion: String,
     ): Session = withContext(Dispatchers.IO) {
         val normalizedCookie = YouTubeMusicSessionAuth.normalizeCookieString(cookie)
         if (!YouTubeMusicSessionAuth.hasAuthenticationCookie(normalizedCookie)) {
@@ -108,6 +114,11 @@ class YouTubeMusicAccount(
         }
         val normalizedDataSyncId = dataSyncId.substringBefore("||").trim()
         val normalizedAuthUser = authUser.filter(Char::isDigit).ifBlank { "0" }
+        val normalizedApiKey = apiKey.trim()
+        val normalizedClientVersion = clientVersion.trim()
+        if (normalizedApiKey.isBlank() || normalizedClientVersion.isBlank()) {
+            throw IOException("YouTube Music did not provide its WEB_REMIX API key and client version. Retry sign-in.")
+        }
         val accountKey = YouTubeMusicSessionAuth.accountKey(normalizedDataSyncId, normalizedCookie)
         val candidate = Session(
             cookie = normalizedCookie,
@@ -116,6 +127,8 @@ class YouTubeMusicAccount(
             authUser = normalizedAuthUser,
             accountKey = accountKey,
             displayName = "YouTube Music",
+            apiKey = normalizedApiKey,
+            clientVersion = normalizedClientVersion,
         )
 
         // Do not save a cookie until the authenticated account endpoint confirms the session.
@@ -154,6 +167,8 @@ class YouTubeMusicAccount(
             .put("authUser", session.authUser)
             .put("accountKey", session.accountKey)
             .put("displayName", session.displayName)
+            .put("apiKey", session.apiKey)
+            .put("clientVersion", session.clientVersion)
         val encrypted = encrypt(json.toString())
         val saved = prefs.edit()
             .putString(ENCRYPTED_SESSION_KEY, encrypted)
@@ -183,6 +198,8 @@ class YouTubeMusicAccount(
                 authUser = json.optString("authUser").filter(Char::isDigit).ifBlank { "0" },
                 accountKey = accountKey,
                 displayName = json.optString("displayName").ifBlank { "YouTube Music" },
+                apiKey = json.optString("apiKey"),
+                clientVersion = json.optString("clientVersion"),
             ).also {
                 prefs.edit()
                     .putBoolean(CONNECTED_KEY, true)
