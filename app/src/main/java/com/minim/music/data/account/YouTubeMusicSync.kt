@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import java.io.IOException
 
 /** Keeps Minim's liked list aligned with the signed-in YouTube Music account. */
 class YouTubeMusicSync(
@@ -60,14 +61,35 @@ class YouTubeMusicSync(
                 flushPending(session)
                 var remote = api.fetchLikedSongs(session)
                 val initialKey = "initial_${session.accountKey}"
-                if (!prefs.getBoolean(initialKey, false)) {
+                val initialSync = !prefs.getBoolean(initialKey, false)
+                if (initialSync) {
                     val remoteIds = remote.mapTo(HashSet()) { it.id }
                     val localOnly = database.getLikedTracks().filterNot { it.id in remoteIds }
                     for (track in localOnly) enqueuePendingForAccount(session.accountKey, track.id, true)
                     flushPending(session)
                     remote = api.fetchLikedSongs(session)
-                    prefs.edit().putBoolean(initialKey, true).apply()
                 }
+                if (account.session.value?.accountKey != session.accountKey) return@withLock
+
+                // A successful HTTP response is not proof that YouTube Music changed the library.
+                // Keep mutations queued until a fresh liked-songs read confirms each desired state.
+                var pending = pendingEntries(session.accountKey)
+                var remoteIds = remote.mapTo(HashSet()) { it.id }
+                var unconfirmed = pending.filter { PendingLikeQueue.isConfirmed(it, remoteIds) != true }
+                if (unconfirmed.isNotEmpty()) {
+                    flushPending(session)
+                    delay(350L)
+                    remote = api.fetchLikedSongs(session)
+                    pending = pendingEntries(session.accountKey)
+                    remoteIds = remote.mapTo(HashSet()) { it.id }
+                    unconfirmed = pending.filter { PendingLikeQueue.isConfirmed(it, remoteIds) != true }
+                }
+                pending.filter { PendingLikeQueue.isConfirmed(it, remoteIds) == true }
+                    .forEach { removePending(PendingLikeQueue.preferenceKey(session.accountKey), it) }
+                if (unconfirmed.isNotEmpty()) {
+                    throw IOException("YouTube Music did not confirm ${unconfirmed.size} like change(s); they remain queued for retry.")
+                }
+                if (initialSync) prefs.edit().putBoolean(initialKey, true).apply()
                 if (account.session.value?.accountKey != session.accountKey) return@withLock
                 database.applyYouTubeMusicLikedTracks(remote, replaceExisting = true)
                 _status.value = Status("Liked songs synced", syncedAt = System.currentTimeMillis())
@@ -105,22 +127,21 @@ class YouTubeMusicSync(
         prefs.edit().putStringSet(key, entries).apply()
     }
 
+    private fun pendingEntries(accountKey: String): List<String> = synchronized(pendingLock) {
+        prefs.getStringSet(PendingLikeQueue.preferenceKey(accountKey), emptySet()).orEmpty().toList()
+    }
+
     private suspend fun flushPending(session: YouTubeMusicAccount.Session) {
         val key = PendingLikeQueue.preferenceKey(session.accountKey)
-        val pending = synchronized(pendingLock) {
-            prefs.getStringSet(key, emptySet()).orEmpty().toList()
-        }
-        for (entry in pending) {
+        for (entry in pendingEntries(session.accountKey)) {
             if (account.session.value?.accountKey != session.accountKey) return
-            val split = entry.lastIndexOf('|')
-            if (split <= 0) {
+            val change = PendingLikeQueue.parse(entry)
+            if (change == null) {
                 removePending(key, entry)
                 continue
             }
-            val id = entry.substring(0, split)
-            val liked = entry.substring(split + 1) == "1"
-            api.setLiked(session, id, liked)
-            removePending(key, entry)
+            api.setLiked(session, change.videoId, change.liked)
+            // Do not remove the entry here. syncNow acknowledges it only after read-back confirms it.
             delay(100L)
         }
     }
