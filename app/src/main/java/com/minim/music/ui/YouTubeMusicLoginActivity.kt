@@ -258,7 +258,7 @@ class YouTubeMusicLoginActivity : AppCompatActivity() {
         if (isFinishing || errorDialog?.isShowing == true) return
         errorDialog = AlertDialog.Builder(this)
             .setTitle("Sign in to YouTube Music")
-            .setMessage("Couldn&apos;t detect a signed-in YouTube Music session. Check your account and retry.")
+            .setMessage("Could not detect a signed-in YouTube Music session. Check your account and retry.")
             .setPositiveButton("Retry") { _, _ -> webView.reload() }
             .setNegativeButton(R.string.close) { _, _ ->
                 setResult(Activity.RESULT_CANCELED)
